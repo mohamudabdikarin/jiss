@@ -94,10 +94,26 @@ exports.createArticle = async (req, res, next) => {
 
 exports.updateArticle = async (req, res, next) => {
   try {
+    delete req.body.createdBy;
+    delete req.body.updatedBy;
     req.body.updatedBy = req.user._id;
 
     if (typeof req.body.authors === 'string') req.body.authors = JSON.parse(req.body.authors);
     if (typeof req.body.keywords === 'string') req.body.keywords = JSON.parse(req.body.keywords);
+    if (typeof req.body.relatedArticles === 'string') {
+      try {
+        req.body.relatedArticles = JSON.parse(req.body.relatedArticles);
+      } catch {
+        req.body.relatedArticles = [];
+      }
+    }
+    if (typeof req.body.supplementaryFiles === 'string') {
+      try {
+        req.body.supplementaryFiles = JSON.parse(req.body.supplementaryFiles);
+      } catch {
+        req.body.supplementaryFiles = [];
+      }
+    }
 
     if (req.file) {
       const result = await uploadFile(req.file, 'articles/pdf');

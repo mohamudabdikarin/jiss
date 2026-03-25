@@ -24,8 +24,26 @@ function normalizeArticleFromApi(raw) {
       .map((r) => (r && typeof r === 'object' && r._id != null ? r._id : r))
       .filter(Boolean);
   }
+  // Populated refs — never send back as multipart (becomes "[object Object]")
+  delete a.createdBy;
+  delete a.updatedBy;
   return a;
 }
+
+/** Server-owned or metric fields — do not POST on update/create from this form */
+const SKIP_ARTICLE_FORM_KEYS = new Set([
+  '_id',
+  '__v',
+  'createdAt',
+  'updatedAt',
+  'createdBy',
+  'updatedBy',
+  'views',
+  'downloads',
+  'citations'
+]);
+
+const JSON_BODY_KEYS = new Set(['authors', 'keywords', 'relatedArticles', 'supplementaryFiles']);
 
 export default function ArticleEditor() {
   const { id } = useParams();
@@ -66,11 +84,14 @@ export default function ArticleEditor() {
     try {
       const formData = new FormData();
       Object.entries(article).forEach(([key, val]) => {
-        if (key === 'authors' || key === 'keywords' || key === 'relatedArticles') {
-          formData.append(key, JSON.stringify(val));
-        } else if (val !== null && val !== undefined && key !== '_id' && key !== '__v' && key !== 'createdAt' && key !== 'updatedAt') {
-          formData.append(key, val);
+        if (SKIP_ARTICLE_FORM_KEYS.has(key)) return;
+        if (JSON_BODY_KEYS.has(key)) {
+          formData.append(key, JSON.stringify(Array.isArray(val) ? val : val ?? []));
+          return;
         }
+        if (val === null || val === undefined) return;
+        if (typeof val === 'object') return;
+        formData.append(key, val);
       });
       if (pdfFile) formData.append('pdf', pdfFile);
 

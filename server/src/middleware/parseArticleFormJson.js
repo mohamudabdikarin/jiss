@@ -1,9 +1,9 @@
 /**
  * Multer leaves multipart text fields as strings. The admin sends authors/keywords/relatedArticles
- * as JSON.stringify(...) — express-validator runs before the controller, so we must parse here.
+ * (and optional supplementaryFiles) as JSON.stringify(...) — validation runs after this middleware.
  */
 function parseArticleMultipartJson(req, res, next) {
-  const keys = ['authors', 'keywords', 'relatedArticles'];
+  const keys = ['authors', 'keywords', 'relatedArticles', 'supplementaryFiles'];
   for (const key of keys) {
     const v = req.body[key];
     if (v == null || v === '') continue;
