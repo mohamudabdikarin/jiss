@@ -13,8 +13,10 @@ const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// 1. Security headers
-app.use(helmet());
+// 1. Security headers — allow this API to be called from other origins (SPA admin/client on Vercel)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 
 // 2. CORS
 app.use(cors(corsOptions));
