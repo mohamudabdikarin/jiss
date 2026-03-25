@@ -1,0 +1,112 @@
+/* This file intentionally left minimal — all styling comes from site.css (original static site CSS) */
+
+/* Maintenance screen */
+.maintenance-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 24px;
+  background: linear-gradient(180deg, #f0f6fc 0%, #fff 100%);
+}
+.maintenance-illustration {
+  max-width: 420px;
+  width: 100%;
+  height: auto;
+  margin-bottom: 32px;
+  object-fit: contain;
+}
+.maintenance-title {
+  font-family: Arial, sans-serif;
+  font-size: 2.75rem;
+  font-weight: 800;
+  color: var(--primary);
+  margin: 0 0 16px;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+.maintenance-message {
+  font-family: Arial, sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  max-width: 520px;
+  text-align: center;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Loading screen */
+.loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.loading-text {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #666;
+  letter-spacing: 0.5px;
+}
+.spinner {
+  width: 40px; height: 40px; border: 3px solid #dde3ec;
+  border-top-color: #003366; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Page loading (inline within page area) */
+.page-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.no-content-msg {
+  padding: 48px 24px;
+  color: var(--text-light);
+  font-size: 15px;
+  text-align: center;
+}
+
+/* Fade-in animation for content transitions */
+.fade-in {
+  animation: fadeIn 0.35s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Section animations */
+.anim-fadeIn { animation: fadeIn 0.5s ease-out; }
+.anim-slideUp {
+  animation: slideUp 0.5s ease-out;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-slideLeft {
+  animation: slideLeft 0.5s ease-out;
+}
+@keyframes slideLeft {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.anim-slideRight {
+  animation: slideRight 0.5s ease-out;
+}
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
