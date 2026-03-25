@@ -459,7 +459,7 @@ export default function PageEditor() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(260px, 320px)', gap: 24, alignItems: 'start' }}>
+        <div className="page-editor-layout-grid" style={{ gap: 24, alignItems: 'start' }}>
           <div style={{ minWidth: 0 }}>
           <div className="card" style={{ marginBottom: 20 }}>
             <div className="form-group">
@@ -698,12 +698,12 @@ export default function PageEditor() {
                   <h3 className="card-title" style={{ margin: 0 }}>Edit section</h3>
                   <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 500 }}>{sectionDraft.name || 'Untitled'} · {sectionDraft.type}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                <div className="section-editor-actions" style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
                   <button type="button" className="btn btn-primary btn-sm" onClick={saveSectionEdit}><FiSave /> Save section</button>
                   <button type="button" className="btn btn-outline btn-sm" onClick={closeSectionEdit}><FiX /> Cancel</button>
                 </div>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, 360px)', gap: 28, padding: '8px 4px 28px 8px' }}>
+              <div className="page-editor-section-edit-grid" style={{ gap: 28, padding: '8px 4px 28px 8px' }}>
                 <div style={{ minWidth: 0 }}>
                 <div className="form-row">
                   <div className="form-group">

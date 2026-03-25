@@ -141,7 +141,7 @@ export default function ArticleEditor() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
+      <div className="article-editor-layout">
         <div>
           <div className="card" style={{ marginBottom: 20 }}>
             <div className="form-group">

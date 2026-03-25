@@ -52,18 +52,18 @@ export default function GlobalSearch() {
 
   if (!open) {
     return (
-      <button className="topbar-btn" onClick={() => setOpen(true)} title="Search (Ctrl+K)">
-        <FiSearch /> <span className="search-placeholder">Search...</span>
+      <button type="button" className="topbar-btn topbar-search-btn" onClick={() => setOpen(true)} title="Search (Ctrl+K)" aria-label="Open search">
+        <FiSearch aria-hidden /><span className="topbar-btn-text search-placeholder">Search…</span>
       </button>
     );
   }
 
   return (
     <div className="global-search-overlay" onClick={() => setOpen(false)} style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', paddingTop: 100
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: 'max(24px, env(safe-area-inset-top)) 16px 16px', paddingTop: 'max(72px, calc(env(safe-area-inset-top) + 24px))'
     }}>
       <div className="global-search-modal" onClick={e => e.stopPropagation()} style={{
-        background: 'var(--card-bg)', borderRadius: 12, width: '90%', maxWidth: 560, maxHeight: 480, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        background: 'var(--card-bg)', borderRadius: 12, width: '100%', maxWidth: 560, maxHeight: 'min(480px, 85vh)', overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: 12, borderBottom: '1px solid var(--card-border)' }}>
           <FiSearch style={{ marginRight: 8, color: 'var(--text-muted)' }} />

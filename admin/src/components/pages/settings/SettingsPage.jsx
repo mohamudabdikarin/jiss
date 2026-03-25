@@ -94,12 +94,12 @@ export default function SettingsPage() {
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}><FiSave /> {saving ? 'Saving...' : 'Save Settings'}</button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="admin-settings-grid">
 
         {/* ===== Branding Card ===== */}
-        <div className="card" style={{ gridColumn: '1 / -1' }}>
+        <div className="card admin-settings-full-width">
           <h3 className="card-title" style={{ marginBottom: 16 }}>Branding</h3>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
+          <div className="settings-branding-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 24 }}>
             {/* Logo preview */}
             <div style={{
               width: 160, height: 160, borderRadius: 12,

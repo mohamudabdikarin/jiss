@@ -181,8 +181,14 @@ export default function AdminLayout() {
       <div className="main-content">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="topbar-btn mobile-menu" onClick={() => setSidebarOpen(!sidebarOpen)}>
-              <FiMenu />
+            <button
+              type="button"
+              className="topbar-btn mobile-menu"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={sidebarOpen}
+            >
+              <FiMenu aria-hidden />
             </button>
             <div className="topbar-left-text">
               <p className="topbar-greeting">
@@ -202,8 +208,8 @@ export default function AdminLayout() {
           </div>
           <div className="topbar-right">
             <GlobalSearch />
-            <NavLink to="/profile" className="topbar-btn"><FiUser /> Profile</NavLink>
-            <button className="topbar-btn" onClick={logout}><FiLogOut /> Logout</button>
+            <NavLink to="/profile" className="topbar-btn"><FiUser /> <span className="topbar-btn-text">Profile</span></NavLink>
+            <button type="button" className="topbar-btn" onClick={logout}><FiLogOut /> <span className="topbar-btn-text">Logout</span></button>
           </div>
         </header>
 

@@ -163,6 +163,7 @@ export default function CategoriesManager() {
         {loading ? (
           <div className="loading-spinner" />
         ) : (
+          <div className="table-container">
           <table className="data-table">
             <thead>
               <tr>
@@ -216,6 +217,7 @@ export default function CategoriesManager() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
         {!loading && categories.length === 0 && <p className="empty-state">No categories yet. Add one above, then pick it in the article editor.</p>}
       </div>

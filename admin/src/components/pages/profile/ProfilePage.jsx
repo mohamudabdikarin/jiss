@@ -44,7 +44,7 @@ export default function ProfilePage() {
         <h1 className="page-title">My Profile</h1>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="admin-two-col-grid">
         <div className="card">
           <div className="card-header"><h3 className="card-title"><FiUser style={{ marginRight: 8 }} /> Profile Info</h3></div>
           <div className="form-group"><label className="form-label">Name</label><input className="form-input" value={name} onChange={e => setName(e.target.value)} /></div>
