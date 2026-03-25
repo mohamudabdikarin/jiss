@@ -1,14 +1,18 @@
 const { env } = require('../config/env');
 
 /**
- * Options for the httpOnly refresh-token cookie.
- *
- * Admin SPA on a different origin than the API (e.g. Vercel + Railway) requires
- * SameSite=None and Secure so the browser sends the cookie on credentialed XHR/fetch.
- * Set REFRESH_COOKIE_CROSS_SITE=true on the API in that setup.
+ * Cross-origin admin (e.g. Vercel) → API (e.g. Railway) requires SameSite=None; Secure
+ * or the refresh cookie is never sent on XHR. In production we default to that unless
+ * REFRESH_COOKIE_STRICT=true (same-site-only legacy setups).
  */
+function useCrossSiteRefreshCookie() {
+  if (process.env.REFRESH_COOKIE_STRICT === 'true') return false;
+  if (env.refreshCookieCrossSite) return true;
+  return env.isProd;
+}
+
 function getRefreshTokenCookieOptions() {
-  if (env.refreshCookieCrossSite) {
+  if (useCrossSiteRefreshCookie()) {
     return {
       httpOnly: true,
       secure: true,
@@ -19,19 +23,18 @@ function getRefreshTokenCookieOptions() {
   }
   return {
     httpOnly: true,
-    secure: env.isProd,
-    sameSite: 'strict',
+    secure: false,
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/'
   };
 }
 
-/** Match set options so clearCookie works in the browser. */
 function getClearRefreshCookieOptions() {
-  if (env.refreshCookieCrossSite) {
+  if (useCrossSiteRefreshCookie()) {
     return { path: '/', sameSite: 'none', secure: true };
   }
-  return { path: '/', sameSite: 'strict', secure: env.isProd };
+  return { path: '/', sameSite: 'lax', secure: false };
 }
 
 module.exports = { getRefreshTokenCookieOptions, getClearRefreshCookieOptions };

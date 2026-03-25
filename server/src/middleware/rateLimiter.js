@@ -10,7 +10,8 @@ const generalLimiter = rateLimit({
     message: 'Too many requests, please try again later'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS'
 });
 
 // Auth: 20 attempts per 15 min (login, forgot/reset password)
@@ -22,7 +23,8 @@ const authLimiter = rateLimit({
     message: 'Too many login attempts, please try again later'
   },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  skip: (req) => req.method === 'OPTIONS'
 });
 
 // Upload: 100 requests per 15 min
