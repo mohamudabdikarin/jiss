@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const { env } = require('../config/env');
+const { getRefreshTokenCookieOptions, getClearRefreshCookieOptions } = require('../utils/authCookies');
 const { successResponse, errorResponse } = require('../utils/responseHandler');
 const auditService = require('../services/auditService');
 const { sendPasswordResetCode } = require('../services/emailService');
@@ -63,13 +64,7 @@ exports.login = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    // Set refresh token as httpOnly cookie
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: env.isProd,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
     auditService.log(user._id, 'login', 'User', user._id, `User logged in: ${email}`, null, req);
 
@@ -84,7 +79,7 @@ exports.login = async (req, res, next) => {
 exports.logout = async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user._id, { refreshToken: null });
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', getClearRefreshCookieOptions());
     auditService.log(req.user._id, 'logout', 'User', req.user._id, 'User logged out', null, req);
     return successResponse(res, null, 'Logged out successfully');
   } catch (error) { next(error); }
@@ -106,12 +101,7 @@ exports.refreshToken = async (req, res, next) => {
     user.refreshToken = newRefreshToken;
     await user.save();
 
-    res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: env.isProd,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    res.cookie('refreshToken', newRefreshToken, getRefreshTokenCookieOptions());
 
     return successResponse(res, { accessToken }, 'Token refreshed');
   } catch (error) {
@@ -195,12 +185,7 @@ exports.changePassword = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: env.isProd,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000
-    });
+    res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
     auditService.log(user._id, 'update', 'User', user._id, 'Password changed', null, req);
     return successResponse(res, { accessToken }, 'Password changed successfully');

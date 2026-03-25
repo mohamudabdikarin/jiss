@@ -55,6 +55,11 @@ const env = {
   ADMIN_URL: process.env.ADMIN_URL || 'http://localhost:3001',
   /** Comma-separated extra CORS origins (e.g. Vercel preview URLs). */
   CORS_EXTRA_ORIGINS: process.env.CORS_EXTRA_ORIGINS || '',
+  /**
+   * When true, refresh-token cookie uses SameSite=None; Secure (required for admin on e.g. Vercel
+   * calling API on Railway). Must use HTTPS on the API.
+   */
+  refreshCookieCrossSite: process.env.REFRESH_COOKIE_CROSS_SITE === 'true',
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: process.env.SMTP_PORT || '587',
   SMTP_SECURE: process.env.SMTP_SECURE || 'false',

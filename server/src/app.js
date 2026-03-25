@@ -1,6 +1,7 @@
 // filepath: server/src/app.js
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
@@ -20,6 +21,9 @@ app.use(helmet({
 
 // 2. CORS
 app.use(cors(corsOptions));
+
+// 2b. Cookies (refresh token for /auth)
+app.use(cookieParser());
 
 // 3. Body parsing
 app.use(express.json({ limit: '10mb' }));
