@@ -53,8 +53,10 @@ export const sectionsAPI = {
 export const articlesAPI = {
   getAll: (params) => api.get('/articles', { params }),
   getById: (id) => api.get(`/articles/${id}`),
-  create: (data) => api.post('/articles', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  update: (id, data) => api.put(`/articles/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  create: (data, config = {}) =>
+    api.post('/articles', data, { headers: { 'Content-Type': 'multipart/form-data' }, ...config }),
+  update: (id, data, config = {}) =>
+    api.put(`/articles/${id}`, data, { headers: { 'Content-Type': 'multipart/form-data' }, ...config }),
   delete: (id) => api.delete(`/articles/${id}`),
   duplicate: (id) => api.post(`/articles/${id}/duplicate`),
   bulkDelete: (ids) => api.post('/articles/bulk-delete', { ids }),

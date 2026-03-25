@@ -1,14 +1,38 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { articlesAPI, categoriesAPI } from '../../../api';
-import { FiSave, FiArrowLeft, FiPlus, FiTrash2, FiUpload } from 'react-icons/fi';
+import { FiSave, FiArrowLeft, FiPlus, FiTrash2 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+
+/** API returns populated `category: { _id, name, slug }` — `<select>` needs a string id */
+function normalizeArticleFromApi(raw) {
+  if (!raw) return null;
+  const a = { ...raw };
+  if (a.category != null && typeof a.category === 'object' && a.category._id != null) {
+    a.category = String(a.category._id);
+  } else if (a.category != null && a.category !== '') {
+    a.category = String(a.category);
+  } else {
+    a.category = '';
+  }
+  if (!Array.isArray(a.authors) || a.authors.length === 0) {
+    a.authors = [{ name: '', affiliation: '', email: '', isCorresponding: false }];
+  }
+  if (!Array.isArray(a.keywords)) a.keywords = [];
+  if (Array.isArray(a.relatedArticles)) {
+    a.relatedArticles = a.relatedArticles
+      .map((r) => (r && typeof r === 'object' && r._id != null ? r._id : r))
+      .filter(Boolean);
+  }
+  return a;
+}
 
 export default function ArticleEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
   const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [categories, setCategories] = useState([]);
   const [pdfFile, setPdfFile] = useState(null);
   const [article, setArticle] = useState({
@@ -20,13 +44,25 @@ export default function ArticleEditor() {
   useEffect(() => {
     categoriesAPI.getAll().then(({ data }) => setCategories(data.data)).catch(() => {});
     if (isEdit) {
-      articlesAPI.getById(id).then(({ data }) => setArticle(data.data)).catch(() => toast.error('Article not found'));
+      articlesAPI
+        .getById(id)
+        .then(({ data }) => {
+          const n = normalizeArticleFromApi(data.data);
+          if (n) setArticle(n);
+        })
+        .catch(() => toast.error('Article not found'));
     }
-  }, [id]);
+  }, [id, isEdit]);
 
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setUploadProgress(0);
+    const uploadConfig = {
+      onUploadProgress: (ev) => {
+        if (ev.total) setUploadProgress(Math.min(100, Math.round((ev.loaded * 100) / ev.total)));
+      }
+    };
     try {
       const formData = new FormData();
       Object.entries(article).forEach(([key, val]) => {
@@ -39,16 +75,19 @@ export default function ArticleEditor() {
       if (pdfFile) formData.append('pdf', pdfFile);
 
       if (isEdit) {
-        await articlesAPI.update(id, formData);
+        await articlesAPI.update(id, formData, uploadConfig);
         toast.success('Article updated');
       } else {
-        const { data } = await articlesAPI.create(formData);
+        const { data } = await articlesAPI.create(formData, uploadConfig);
         toast.success('Article created');
         navigate(`/articles/${data.data._id}`);
       }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Save failed');
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+      setUploadProgress(null);
+    }
   };
 
   const addAuthor = () => setArticle({ ...article, authors: [...article.authors, { name: '', affiliation: '', email: '', isCorresponding: false }] });
@@ -66,7 +105,19 @@ export default function ArticleEditor() {
           <button className="btn btn-outline" onClick={() => navigate('/articles')}><FiArrowLeft /></button>
           <h1 className="page-title">{isEdit ? 'Edit Article' : 'New Article'}</h1>
         </div>
-        <button className="btn btn-primary" onClick={handleSave} disabled={saving}><FiSave /> {saving ? 'Saving...' : 'Save'}</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {saving && (
+            <>
+              <span className="spinner" style={{ width: 18, height: 18, borderWidth: 2, flexShrink: 0 }} aria-hidden />
+              {uploadProgress != null && (
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 36 }}>{uploadProgress}%</span>
+              )}
+            </>
+          )}
+          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            <FiSave /> {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
@@ -129,9 +180,17 @@ export default function ArticleEditor() {
             </div>
             <div className="form-group">
               <label className="form-label">Category</label>
-              <select className="form-select" value={article.category || ''} onChange={e => setArticle({ ...article, category: e.target.value })}>
+              <select
+                className="form-select"
+                value={article.category != null ? String(article.category) : ''}
+                onChange={(e) => setArticle({ ...article, category: e.target.value })}
+              >
                 <option value="">No category</option>
-                {categories.map(cat => <option key={cat._id} value={cat._id}>{cat.name}</option>)}
+                {categories.map((cat) => (
+                  <option key={String(cat._id)} value={String(cat._id)}>
+                    {cat.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="form-row">
@@ -147,7 +206,12 @@ export default function ArticleEditor() {
           <div className="card">
             <h3 className="card-title" style={{ marginBottom: 16 }}>PDF Upload</h3>
             {article.pdfUrl && <p style={{ fontSize: 13, marginBottom: 12, color: 'var(--success)' }}>✓ PDF uploaded: {article.pdfFileName}</p>}
-            <input type="file" accept=".pdf" onChange={e => setPdfFile(e.target.files[0])} style={{ fontSize: 13 }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <input type="file" accept=".pdf" onChange={(e) => setPdfFile(e.target.files?.[0] || null)} style={{ fontSize: 13 }} />
+              {saving && pdfFile && (
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{uploadProgress ?? 0}%</span>
+              )}
+            </div>
             <p className="form-helper">Max 100MB. PDF files only.</p>
           </div>
         </div>
