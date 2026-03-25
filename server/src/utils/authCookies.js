@@ -8,6 +8,9 @@ const { env } = require('../config/env');
 function useCrossSiteRefreshCookie() {
   if (process.env.REFRESH_COOKIE_STRICT === 'true') return false;
   if (env.refreshCookieCrossSite) return true;
+  if (process.env.CROSS_SITE_REFRESH_COOKIES === 'true') return true;
+  // Some hosts run the API without NODE_ENV=production; without SameSite=None the cookie never
+  // attaches to cross-origin XHR from Vercel → API.
   return env.isProd;
 }
 

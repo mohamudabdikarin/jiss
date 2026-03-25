@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { authAPI } from '../../../api';
+import { setStoredRefreshToken } from '../../../api/authStorage';
 import { FiSave, FiLock, FiUser } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -26,7 +27,10 @@ export default function ProfilePage() {
   const handleChangePassword = async () => {
     setChangingPw(true);
     try {
-      await authAPI.changePassword({ currentPassword, newPassword });
+      const { data } = await authAPI.changePassword({ currentPassword, newPassword });
+      const d = data?.data;
+      if (d?.accessToken) localStorage.setItem('accessToken', d.accessToken);
+      if (d?.refreshToken) setStoredRefreshToken(d.refreshToken);
       toast.success('Password changed');
       setCurrentPassword('');
       setNewPassword('');

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../api';
+import { setStoredRefreshToken } from '../api/authStorage';
 
 const AuthContext = createContext(null);
 
@@ -35,6 +36,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const { data } = await authAPI.login({ email, password });
     localStorage.setItem('accessToken', data.data.accessToken);
+    if (data.data.refreshToken) setStoredRefreshToken(data.data.refreshToken);
     setUser(data.data.user);
     return data.data.user;
   };
@@ -42,6 +44,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try { await authAPI.logout(); } catch {}
     localStorage.removeItem('accessToken');
+    setStoredRefreshToken(null);
     setUser(null);
   };
 

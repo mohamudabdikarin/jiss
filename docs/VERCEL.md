@@ -40,6 +40,8 @@ Requirements:
 2. **`cookie-parser`** enabled on the API (already wired in `app.js`)
 3. After deploying API cookie changes, **log in again** so the browser stores a new cookie
 
+The admin app also stores the rotated **refresh token in `sessionStorage`** and sends it on `POST /auth/refresh-token` if the httpOnly cookie is missing (common with strict third‑party cookie rules or when `NODE_ENV` is not `production` on the host). Set **`CROSS_SITE_REFRESH_COOKIES=true`** on the API if you need `SameSite=None` cookies but the process does not run as production.
+
 ## Quick checklist
 
 1. API: `CLIENT_URL` and `ADMIN_URL` match the live Vercel URLs.

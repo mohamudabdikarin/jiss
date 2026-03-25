@@ -72,7 +72,11 @@ exports.login = async (req, res, next) => {
     delete userData.password;
     delete userData.refreshToken;
 
-    return successResponse(res, { accessToken, user: userData }, 'Login successful');
+    return successResponse(
+      res,
+      { accessToken, refreshToken, user: userData },
+      'Login successful'
+    );
   } catch (error) { next(error); }
 };
 
@@ -103,7 +107,7 @@ exports.refreshToken = async (req, res, next) => {
 
     res.cookie('refreshToken', newRefreshToken, getRefreshTokenCookieOptions());
 
-    return successResponse(res, { accessToken }, 'Token refreshed');
+    return successResponse(res, { accessToken, refreshToken: newRefreshToken }, 'Token refreshed');
   } catch (error) {
     return errorResponse(res, 'Invalid refresh token', 401);
   }
@@ -188,6 +192,6 @@ exports.changePassword = async (req, res, next) => {
     res.cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
     auditService.log(user._id, 'update', 'User', user._id, 'Password changed', null, req);
-    return successResponse(res, { accessToken }, 'Password changed successfully');
+    return successResponse(res, { accessToken, refreshToken }, 'Password changed successfully');
   } catch (error) { next(error); }
 };
