@@ -19,6 +19,7 @@ import BackupManager from './components/pages/backup/BackupManager';
 import RedirectManager from './components/pages/redirects/RedirectManager';
 import ProfilePage from './components/pages/profile/ProfilePage';
 import TranslationManager from './components/pages/translations/TranslationManager';
+import CategoriesManager from './components/pages/categories/CategoriesManager';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -45,6 +46,7 @@ const AppRoutes = () => {
         <Route path="articles" element={<ArticlesList />} />
         <Route path="articles/new" element={<ArticleEditor />} />
         <Route path="articles/:id" element={<ArticleEditor />} />
+        <Route path="categories" element={<CategoriesManager />} />
         <Route path="media" element={<MediaLibrary />} />
         <Route path="navigation" element={<NavigationManager />} />
         <Route path="footer" element={<FooterManager />} />

@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { FiHome, FiFileText, FiBook, FiImage, FiMenu, FiGrid, FiSearch, FiSettings, FiDatabase, FiUser, FiLogOut, FiChevronDown, FiStar, FiShield, FiCornerDownRight, FiChevronLeft, FiChevronRight, FiBarChart2 } from 'react-icons/fi';
+import { FiHome, FiFileText, FiBook, FiImage, FiMenu, FiGrid, FiSearch, FiSettings, FiDatabase, FiUser, FiLogOut, FiChevronDown, FiStar, FiShield, FiCornerDownRight, FiChevronLeft, FiChevronRight, FiBarChart2, FiTag } from 'react-icons/fi';
 import { useState, useEffect, useMemo } from 'react';
 import GlobalSearch from './GlobalSearch';
 
@@ -41,6 +41,7 @@ const navItems = [
   { path: '/', icon: <FiHome />, label: 'Dashboard', end: true },
   { path: '/pages', icon: <FiFileText />, label: 'Pages' },
   { path: '/articles', icon: <FiBook />, label: 'Articles' },
+  { path: '/categories', icon: <FiTag />, label: 'Categories' },
   { path: '/media', icon: <FiImage />, label: 'Media Library' },
   { label: 'STRUCTURE', type: 'section' },
   { path: '/navigation', icon: <FiMenu />, label: 'Navigation' },

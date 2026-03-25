@@ -6,8 +6,21 @@ const { generateUniqueSlug } = require('../utils/slugify');
 
 exports.getAllCategories = async (req, res, next) => {
   try {
-    const categories = await Category.find().populate('articleCount').sort({ order: 1 }).lean();
-    return successResponse(res, categories);
+    const categories = await Category.find().sort({ order: 1, name: 1 }).lean();
+    const ids = categories.map((c) => c._id);
+    let countMap = {};
+    if (ids.length > 0) {
+      const rows = await Article.aggregate([
+        { $match: { category: { $in: ids } } },
+        { $group: { _id: '$category', n: { $sum: 1 } } }
+      ]);
+      countMap = Object.fromEntries(rows.map((r) => [String(r._id), r.n]));
+    }
+    const enriched = categories.map((c) => ({
+      ...c,
+      articleCount: countMap[String(c._id)] || 0
+    }));
+    return successResponse(res, enriched);
   } catch (error) { next(error); }
 };
 
