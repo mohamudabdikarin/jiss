@@ -54,7 +54,8 @@ const navItems = [
     external: true,
     href: GA_DASHBOARD_URL,
     icon: <FiBarChart2 />,
-    label: 'Google Analytics'
+    label: 'Google Analytics',
+    title: 'Open GA4 reports (tracking ID is set under Settings → Analytics on the public site)'
   },
   { label: 'SYSTEM', type: 'section' },
   { path: '/redirects', icon: <FiCornerDownRight />, label: 'Redirects' },
@@ -142,7 +143,7 @@ export default function AdminLayout() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="sidebar-link"
-                  title="Visitor stats on the public site (opens in a new tab)"
+                  title={item.title || 'Opens in a new tab'}
                   onClick={() => setSidebarOpen(false)}
                 >
                   {item.icon}

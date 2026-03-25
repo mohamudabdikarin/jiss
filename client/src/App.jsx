@@ -9,7 +9,7 @@ import SearchResultsPage from './components/pages/SearchResultsPage';
 import NotFound from './components/Common/NotFound';
 import SEOHead from './components/Common/SEOHead';
 import Sidebar from './components/layout/Sidebar';
-import { buildAnalyticsPagePath, trackGtagPageView } from './utils/analytics';
+import { buildAnalyticsPagePath, trackGtagPageView, initGtag } from './utils/analytics';
 
 // Language codes — labels come from translations (t.lang_en_label etc)
 const LANG_CODES = ['en', 'ar', 'ms', 'zh'];
@@ -336,7 +336,15 @@ export default function App() {
     return () => window.removeEventListener('maintenance', onMaintenance);
   }, []);
 
-  // GA4: virtual page views on SPA navigation (initial load handled by gtag in index.html)
+  // GA4: load gtag.js with ID from CMS (Settings → Analytics) or VITE_GA_MEASUREMENT_ID
+  useEffect(() => {
+    if (initialLoading) return;
+    const fromCms = siteSettings?.analytics?.googleAnalyticsId?.trim();
+    const fromEnv = (import.meta.env.VITE_GA_MEASUREMENT_ID || '').trim();
+    initGtag(fromCms || fromEnv || '');
+  }, [initialLoading, siteSettings?.analytics?.googleAnalyticsId]);
+
+  // GA4: virtual page views on SPA navigation
   useEffect(() => {
     if (initialLoading || maintenanceMessage) return;
     if (typeof window.gtag !== 'function') return;

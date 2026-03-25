@@ -163,61 +163,116 @@ export default function CategoriesManager() {
         {loading ? (
           <div className="loading-spinner" />
         ) : (
-          <div className="table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Order</th>
-                <th>Active</th>
-                <th>Articles</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
+          <>
+            <div className="table-container categories-desktop-wrap">
+              <table className="data-table data-table--categories">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Slug</th>
+                    <th className="categories-col-narrow">Order</th>
+                    <th className="categories-col-narrow">Active</th>
+                    <th className="categories-col-narrow">Articles</th>
+                    <th className="categories-col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((c) => (
+                    <tr key={c._id}>
+                      <td>{c.name}</td>
+                      <td>
+                        <code className="categories-slug-code">{c.slug}</code>
+                      </td>
+                      <td className="categories-col-narrow">{c.order ?? 0}</td>
+                      <td className="categories-col-narrow">{c.isActive !== false ? 'Yes' : 'No'}</td>
+                      <td className="categories-col-narrow">{c.articleCount ?? 0}</td>
+                      <td className="categories-col-actions">
+                        <div className="categories-actions-group">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline categories-action-btn"
+                            aria-label={`Edit category ${c.name}`}
+                            onClick={() => {
+                              setEditing(c);
+                              setForm({
+                                name: c.name || '',
+                                description: c.description || '',
+                                order: c.order ?? 0,
+                                isActive: c.isActive !== false,
+                                parentCategory: c.parentCategory ? String(c.parentCategory) : ''
+                              });
+                            }}
+                          >
+                            <FiEdit2 aria-hidden />
+                          </button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-danger categories-action-btn"
+                              aria-label={`Delete category ${c.name}`}
+                              onClick={() => handleDelete(c._id)}
+                            >
+                              <FiTrash2 aria-hidden />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="categories-mobile-cards">
               {categories.map((c) => (
-                <tr key={c._id}>
-                  <td>{c.name}</td>
-                  <td>
-                    <code>{c.slug}</code>
-                  </td>
-                  <td>{c.order ?? 0}</td>
-                  <td>{c.isActive !== false ? 'Yes' : 'No'}</td>
-                  <td>{c.articleCount ?? 0}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline"
-                      onClick={() => {
-                        setEditing(c);
-                        setForm({
-                          name: c.name || '',
-                          description: c.description || '',
-                          order: c.order ?? 0,
-                          isActive: c.isActive !== false,
-                          parentCategory: c.parentCategory ? String(c.parentCategory) : ''
-                        });
-                      }}
-                    >
-                      <FiEdit2 />
-                    </button>
-                    {canDelete && (
+                <div key={`m-${c._id}`} className="category-mobile-card">
+                  <div className="category-mobile-card-header">
+                    <div className="category-mobile-card-title">{c.name}</div>
+                    <div className="categories-actions-group">
                       <button
                         type="button"
-                        className="btn btn-sm btn-danger"
-                        onClick={() => handleDelete(c._id)}
-                        style={{ marginLeft: 8 }}
+                        className="btn btn-sm btn-outline categories-action-btn"
+                        aria-label={`Edit ${c.name}`}
+                        onClick={() => {
+                          setEditing(c);
+                          setForm({
+                            name: c.name || '',
+                            description: c.description || '',
+                            order: c.order ?? 0,
+                            isActive: c.isActive !== false,
+                            parentCategory: c.parentCategory ? String(c.parentCategory) : ''
+                          });
+                        }}
                       >
-                        <FiTrash2 />
+                        <FiEdit2 aria-hidden />
                       </button>
-                    )}
-                  </td>
-                </tr>
+                      {canDelete && (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-danger categories-action-btn"
+                          aria-label={`Delete ${c.name}`}
+                          onClick={() => handleDelete(c._id)}
+                        >
+                          <FiTrash2 aria-hidden />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="category-mobile-meta">
+                    <div>
+                      <span className="category-mobile-label">Slug</span>{' '}
+                      <code className="categories-slug-code">{c.slug}</code>
+                    </div>
+                    <div>
+                      <span className="category-mobile-label">Order</span> {c.order ?? 0} ·{' '}
+                      <span className="category-mobile-label">Active</span> {c.isActive !== false ? 'Yes' : 'No'} ·{' '}
+                      <span className="category-mobile-label">Articles</span> {c.articleCount ?? 0}
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-          </div>
+            </div>
+          </>
         )}
         {!loading && categories.length === 0 && <p className="empty-state">No categories yet. Add one above, then pick it in the article editor.</p>}
       </div>

@@ -1,15 +1,47 @@
 /**
- * GA4 measurement ID (same as gtag in index.html).
- *
- * Country / region: GA4 infers this from each visitor’s IP when processing hits — no extra
- * gtag fields are required. In Analytics: Reports → User → User attributes → Country, or
- * explore templates that include “Country”. Accuracy is typical for analytics (VPNs skew it).
- * If the property is in the EU, review consent / GDPR settings in GA4 Admin.
+ * GA4: measurement ID comes from CMS (Site settings → Analytics) or VITE_GA_MEASUREMENT_ID.
+ * Admin “Google Analytics” sidebar link only opens the GA dashboard — it does not install tags.
  */
-export const GA_MEASUREMENT_ID = 'G-EBBMD2GVNQ';
+
+const ID_PATTERN = /^G-[A-Z0-9]+$/i;
 
 /**
- * Virtual path for SPA reporting (not necessarily equal to location.pathname because routing is hash + state).
+ * Load gtag.js and configure measurement ID (idempotent).
+ * @returns {boolean} true if an ID was applied
+ */
+export function initGtag(measurementId) {
+  const id = (measurementId || '').trim();
+  if (!id || !ID_PATTERN.test(id)) return false;
+  if (window.__GA4_MEASUREMENT_ID === id) return true;
+  window.__GA4_MEASUREMENT_ID = id;
+
+  window.dataLayer = window.dataLayer || [];
+  if (typeof window.gtag !== 'function') {
+    window.gtag = function gtag() {
+      window.dataLayer.push(arguments);
+    };
+  }
+
+  const marker = `script[data-ga4-id="${id}"]`;
+  if (!document.querySelector(marker)) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+    s.setAttribute('data-ga4-id', id);
+    document.head.appendChild(s);
+  }
+
+  window.gtag('js', new Date());
+  window.gtag('config', id, { send_page_view: false });
+  return true;
+}
+
+export function getGaMeasurementId() {
+  return typeof window !== 'undefined' ? window.__GA4_MEASUREMENT_ID : undefined;
+}
+
+/**
+ * Virtual path for SPA reporting (hash router + state).
  */
 export function buildAnalyticsPagePath(currentPage, articleSlug, searchQuery) {
   if (currentPage === 'article' && articleSlug) {
@@ -23,11 +55,13 @@ export function buildAnalyticsPagePath(currentPage, articleSlug, searchQuery) {
 }
 
 /**
- * Send a page_view via gtag (SPA navigations after initial HTML load).
+ * Send page_view via gtag (SPA navigations).
  */
 export function trackGtagPageView(pagePath, pageTitle) {
   if (typeof window === 'undefined' || typeof window.gtag !== 'function') return;
-  window.gtag('config', GA_MEASUREMENT_ID, {
+  const mid = getGaMeasurementId();
+  if (!mid) return;
+  window.gtag('config', mid, {
     page_path: pagePath,
     ...(pageTitle ? { page_title: pageTitle } : {})
   });
