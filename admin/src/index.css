@@ -599,6 +599,39 @@ a.btn-danger:active { color: #fff; text-decoration: none; }
   background: var(--danger-bg); color: var(--danger); padding: 10px 14px;
   border-radius: 8px; font-size: 13px; margin-bottom: 16px;
 }
+.login-password-wrap {
+  position: relative;
+}
+.login-password-wrap .form-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 44px;
+}
+.login-password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+}
+.login-password-toggle:hover {
+  color: var(--primary);
+  background: rgba(0, 51, 102, 0.06);
+}
+.login-password-toggle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 
 /* ===== MEDIA GRID ===== */
 .media-grid {

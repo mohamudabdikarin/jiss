@@ -88,7 +88,8 @@ curl -s http://localhost:5000/api/v1/health | jq
 | **[docs/SETUP.md](docs/SETUP.md)** | Environment variables, MongoDB, R2, SMTP, CORS, production notes, troubleshooting |
 | **[docs/DOKPLOY.md](docs/DOKPLOY.md)** | Docker Compose on [Dokploy](https://dokploy.com/): three domains, `VITE_*` API URLs, Mongo options |
 | **[docs/RENDER.md](docs/RENDER.md)** | [Render](https://render.com/) Web Service (API) + optional Static Sites for client/admin |
-| **[docs/VERCEL.md](docs/VERCEL.md)** | [Vercel](https://vercel.com/) for **client** and **admin**; API stays on Render (or similar) |
+| **[docs/VERCEL.md](docs/VERCEL.md)** | [Vercel](https://vercel.com/) for **client** and **admin** only |
+| **[docs/API_HOSTING.md](docs/API_HOSTING.md)** | **Where to host the Node API** (Vercel is not suited as-is); Render alternatives (Railway, Fly, VPS, Dokploy) |
 | **[docs/TRANSLATIONS.md](docs/TRANSLATIONS.md)** | Translation Manager, multilingual public site, CMS “source” prefill API |
 | **[JISS_CLIENT_SETUP.md](JISS_CLIENT_SETUP.md)** | Example checklist for another journal deployment (JISS); generic steps are in **docs/SETUP.md** |
 
@@ -119,6 +120,7 @@ docker compose -f docker-compose.yml -f docker-compose.ports.yml up --build
 
 ## Render & Vercel
 
+- **Vercel** is for the **client** and **admin** static sites only. The **Express API cannot be deployed on Vercel without a major rewrite** — use another host for `server/`. See **[docs/API_HOSTING.md](docs/API_HOSTING.md)**.
 - **Render:** Root **`render.yaml`** defines the **API** Web Service (`server/`). Add **Static Sites** for `client/` and `admin/` in the dashboard (or a second blueprint) — see **[docs/RENDER.md](docs/RENDER.md)**.
 - **Vercel:** Create **two** projects with root directories **`client`** and **`admin`**. Set **`VITE_API_URL`** at build time to your deployed API (`.../api/v1/public` vs `.../api/v1`). See **[docs/VERCEL.md](docs/VERCEL.md)**.
 - **CORS:** Set **`CLIENT_URL`**, **`ADMIN_URL`**, and optionally **`CORS_EXTRA_ORIGINS`** (comma-separated) on the API for Vercel/Render front-end URLs.
