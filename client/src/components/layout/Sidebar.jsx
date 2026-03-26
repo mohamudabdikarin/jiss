@@ -10,10 +10,19 @@ export default function Sidebar({ t, showPage, sidebarItems = [], getTranslatedL
     return true;
   };
 
+  const quickLinkLabel = (slug, fallback) => {
+    if (slug === 'published') return t?.sb_published ?? fallback;
+    if (slug === 'preprints') return t?.sb_preprint ?? fallback;
+    return fallback;
+  };
+
   const renderApiLink = (item, i) => {
     const slug = getSlug(item.url);
+    const section = item.sidebarSection || 'journalinfo';
     const label =
-      isInternal(item.url) && typeof getTranslatedLabel === 'function'
+      isInternal(item.url) && section === 'quicklinks'
+        ? quickLinkLabel(slug, item.label || '')
+        : isInternal(item.url) && typeof getTranslatedLabel === 'function'
         ? getTranslatedLabel(slug, item.label || '', t)
         : item.label || '';
     if (isInternal(item.url)) {
@@ -49,7 +58,7 @@ export default function Sidebar({ t, showPage, sidebarItems = [], getTranslatedL
       <div className="sidebar-section">
         <div className="sidebar-title">{t?.sidebar_quicklinks ?? 'Quick Links'}</div>
         <ul>
-          {defaultQuickLinks.map((item, i) => (
+          {apiQuickLinks.length === 0 && defaultQuickLinks.map((item, i) => (
             <li key={i}>
               <a href="#" onClick={e => { e.preventDefault(); showPage(item.page); }}>{item.label}</a>
             </li>
@@ -60,7 +69,7 @@ export default function Sidebar({ t, showPage, sidebarItems = [], getTranslatedL
       <div className="sidebar-section">
         <div className="sidebar-title">{t?.sidebar_journalinfo ?? 'Journal Info'}</div>
         <ul>
-          {defaultJournalInfo.map((item, i) => (
+          {apiJournalInfo.length === 0 && defaultJournalInfo.map((item, i) => (
             <li key={i}>
               <a href="#" onClick={e => { e.preventDefault(); showPage(item.slug); }}>{t?.[item.labelKey] ?? item.slug}</a>
             </li>

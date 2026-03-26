@@ -16,7 +16,10 @@ const TRANSLATION_SECTIONS = [
     { key: 'nav_editorial', label: 'Editorial Board' }, { key: 'nav_authors', label: 'For Authors' },
     { key: 'nav_reviewers', label: 'For Reviewers' }, { key: 'nav_indexing', label: 'Indexing' },
     { key: 'nav_ethics', label: 'Ethics & Policies' }, { key: 'nav_apc', label: 'APC Charges' },
-    { key: 'nav_contact', label: 'Contact' }
+    { key: 'nav_contact', label: 'Contact' },
+    { key: 'nav_preprints', label: 'Preprints' },
+    { key: 'nav_published', label: 'Published' },
+    { key: 'nav_search', label: 'Search' }
   ]},
   { section: 'Top Bar', keys: [
     { key: 'topbar_published', label: 'Published Articles' }, { key: 'topbar_preprint', label: 'Preprint' }
@@ -149,11 +152,12 @@ function hasSavedTranslation(persisted, lang, key) {
 }
 
 /** Merge saved DB translations with CMS sources for any empty key (all languages). */
-function buildDraftFromPersistedAndSources(persisted, sources) {
+function buildDraftFromPersistedAndSources(persisted, sources, extraKeys = []) {
   const draft = {};
+  const keys = Array.from(new Set([...ALL_TRANSLATION_KEYS, ...(extraKeys || [])]));
   for (const { code } of LANGUAGES) {
     draft[code] = { ...(persisted[code] || {}) };
-    for (const key of ALL_TRANSLATION_KEYS) {
+    for (const key of keys) {
       const saved = draft[code][key];
       const hasSaved = saved != null && String(saved).trim() !== '';
       if (hasSaved) continue;
@@ -168,39 +172,52 @@ export default function TranslationManager() {
   const [translations, setTranslations] = useState({});
   const [persisted, setPersisted] = useState({});
   const [cmsSources, setCmsSources] = useState({});
-  const [activeLang, setActiveLang] = useState('en');
   const [activeSection, setActiveSection] = useState(TRANSLATION_SECTIONS[0].section);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const reloadLive = useCallback(async () => {
     setLoading(true);
-    Promise.all([api.get('/settings'), api.get('/settings/translation-sources')])
-      .then(([settingsRes, sourcesRes]) => {
-        const raw = settingsRes.data.data?.translations || {};
-        const persistedCopy = JSON.parse(JSON.stringify(raw));
-        setPersisted(persistedCopy);
-        const sources = sourcesRes.data.data?.sources || {};
-        setCmsSources(sources);
-        setTranslations(buildDraftFromPersistedAndSources(persistedCopy, sources));
-      })
-      .catch(() => toast.error('Failed to load translations or CMS sources'))
-      .finally(() => setLoading(false));
+    try {
+      const [settingsRes, sourcesRes] = await Promise.all([
+        api.get('/settings'),
+        api.get('/settings/translation-sources')
+      ]);
+
+      const raw = settingsRes.data.data?.translations || {};
+      const persistedCopy = JSON.parse(JSON.stringify(raw));
+      const sources = sourcesRes.data.data?.sources || {};
+
+      setPersisted(persistedCopy);
+      setCmsSources(sources);
+      const dynamicNavKeys = Object.keys(sources).filter((k) => k.startsWith('nav_'));
+      setTranslations(buildDraftFromPersistedAndSources(persistedCopy, sources, dynamicNavKeys));
+    } catch {
+      toast.error('Failed to reload live keys');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleChange = useCallback((key, value) => {
+  useEffect(() => {
+    reloadLive();
+  }, []);
+
+  const handleChange = useCallback((langCode, key, value) => {
     setTranslations(prev => ({
       ...prev,
-      [activeLang]: { ...prev[activeLang], [key]: value }
+      [langCode]: { ...(prev[langCode] || {}), [key]: value }
     }));
-  }, [activeLang]);
+  }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.put('/settings', { translations });
-      const next = JSON.parse(JSON.stringify(translations));
-      setPersisted(next);
+
+      // Reload live sources + persisted translations so the UI adapts if pages/nav were changed elsewhere.
+      await reloadLive();
+
       toast.success('Translations saved!');
     } catch { toast.error('Failed to save'); }
     finally { setSaving(false); }
@@ -208,80 +225,171 @@ export default function TranslationManager() {
 
   if (loading) return <div className="loading-spinner">Loading...</div>;
 
-  const currentSection = TRANSLATION_SECTIONS.find(s => s.section === activeSection);
-  const langData = translations[activeLang] || {};
+  const cmsHasKey = (key) => cmsSources && cmsSources[key] != null && String(cmsSources[key]).trim() !== '';
+
+  const navigationSection = TRANSLATION_SECTIONS.find((s) => s.section === 'Navigation');
+  const standardNavKeys = (navigationSection?.keys || []).map((k) => k.key);
+  const standardNavKeySet = new Set(standardNavKeys);
+
+  const dynamicNavKeys = Object.keys(cmsSources || {}).filter((k) => k.startsWith('nav_') && cmsHasKey(k));
+
+  const navKeysSorted = [
+    ...standardNavKeys.filter((k) => dynamicNavKeys.includes(k)),
+    ...dynamicNavKeys.filter((k) => !standardNavKeySet.has(k)).sort((a, b) => a.localeCompare(b))
+  ];
+
+  // These are the "page-title" keys that exist only when the CMS page is published.
+  // If a page is not published, we hide its translation section entirely.
+  const PAGE_SECTION_TITLE_KEY = {
+    'Home Page': 'home_h1',
+    'Aims & Scope': 'aims_h1',
+    'Editorial Board': 'editorial_h1',
+    'For Authors': 'authors_h1',
+    'For Reviewers': 'reviewers_h1',
+    'Indexing': 'indexing_h1',
+    'Ethics & Policies': 'ethics_h1',
+    'APC Charges': 'apc_h1',
+    'Contact': 'contact_h1'
+  };
+
+  const visibleSections = TRANSLATION_SECTIONS.filter((s) => {
+    if (s.section === 'Navigation') {
+      return navKeysSorted.length > 0;
+    }
+    if (s.section === 'Top Bar') {
+      return s.keys.some((k) => k.key.startsWith('topbar_') && cmsHasKey(k.key));
+    }
+    const pageTitleKey = PAGE_SECTION_TITLE_KEY[s.section];
+    if (pageTitleKey) return cmsHasKey(pageTitleKey);
+    return true; // UI-centric sections remain editable even if CMS pages aren't published
+  });
+
+  const resolvedActiveSection =
+    visibleSections.some((s) => s.section === activeSection)
+      ? activeSection
+      : (visibleSections[0]?.section || TRANSLATION_SECTIONS[0].section);
+
+  const currentSection = visibleSections.find(s => s.section === resolvedActiveSection) || visibleSections[0];
+
+  const keysToRender = (currentSection?.keys || []).filter(({ key }) => {
+    if (currentSection.section === 'Navigation') return key.startsWith('nav_') && cmsHasKey(key);
+    if (currentSection.section === 'Top Bar') return key.startsWith('topbar_') && cmsHasKey(key);
+    if (currentSection.section === 'Sidebar') {
+      if (key === 'sb_published' || key === 'sb_preprint') return cmsHasKey(key);
+      return true;
+    }
+    return true;
+  });
+
+  const navItems = currentSection?.section === 'Navigation'
+    ? navKeysSorted.map((key) => {
+      const standard = (navigationSection?.keys || []).find((k) => k.key === key);
+      const slug = key.replace(/^nav_/, '');
+      const label =
+        standard?.label ||
+        slug
+          .replace(/_/g, ' ')
+          .replace(/-/g, ' ')
+          .replace(/\b\w/g, (m) => m.toUpperCase());
+      return { key, label, type: standard?.type };
+    })
+    : [];
 
   return (
     <div>
       <div className="page-header">
         <h1>🌐 Translation Manager</h1>
-        <p>Manage content in 4 languages: English, Arabic, Malay, Chinese.</p>
-        <p style={{ fontSize: 14, color: '#4b5563', maxWidth: 900, marginTop: 8 }}>
-          Empty fields are prefilled from the <strong>live published pages</strong>, site settings, and navigation so you see what visitors see before any override. Saving stores the text for the selected language; keys that already had a saved translation are left unchanged until you edit them.
-        </p>
+        
       </div>
 
-      {/* Language Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {LANGUAGES.map(lang => (
-          <button key={lang.code}
-            className={`btn ${activeLang === lang.code ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={() => setActiveLang(lang.code)}
-            style={{ fontSize: 14, padding: '10px 20px' }}>
-            {lang.flag} {lang.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Section Tabs */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 20, borderBottom: '2px solid #e5e7eb', paddingBottom: 10 }}>
-        {TRANSLATION_SECTIONS.map(s => (
-          <button key={s.section}
-            onClick={() => setActiveSection(s.section)}
-            style={{
-              padding: '6px 14px', fontSize: 12, fontWeight: 600, border: 'none', borderRadius: 4, cursor: 'pointer',
-              background: activeSection === s.section ? 'var(--primary-color,#003366)' : '#f3f4f6',
-              color: activeSection === s.section ? '#fff' : '#333'
-            }}>
-            {s.section}
-          </button>
-        ))}
+      {/* Section Picker (no tabs, keeps UI simple) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <label style={{ fontWeight: 700, fontSize: 13, color: '#374151' }}>Section</label>
+        <select
+          className="form-select"
+          value={resolvedActiveSection}
+          onChange={(e) => setActiveSection(e.target.value)}
+          style={{ maxWidth: 420 }}
+        >
+          {visibleSections.map((s) => (
+            <option key={s.section} value={s.section}>
+              {s.section}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Translation Fields */}
       <div className="card">
         <div className="card-header">
-          <h2>{activeSection} — {LANGUAGES.find(l => l.code === activeLang)?.flag} {LANGUAGES.find(l => l.code === activeLang)?.label}</h2>
+          <h2>{resolvedActiveSection}</h2>
         </div>
         <div className="card-body">
-          {currentSection?.keys.map(({ key, label, type }) => {
-            const fromCms = !hasSavedTranslation(persisted, activeLang, key) && cmsSources[key] != null && String(cmsSources[key]).trim() !== '';
-            return (
-            <div className="form-group" key={key} style={{ marginBottom: 16 }}>
-              <label style={{ fontWeight: 600, fontSize: 13, color: '#555', marginBottom: 4, display: 'block' }}>
-                {label} <code style={{ fontSize: 11, color: '#999' }}>{key}</code>
-                {fromCms ? (
-                  <span style={{ fontWeight: 500, fontSize: 11, color: '#059669', marginLeft: 6 }}>(from live site — not saved until you Save)</span>
-                ) : null}
-              </label>
-              {type === 'textarea' ? (
-                <textarea
-                  value={langData[key] || ''}
-                  onChange={e => handleChange(key, e.target.value)}
-                  rows={4}
-                  style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, fontSize: 14, fontFamily: activeLang === 'ar' ? '"Segoe UI",Arial,Tahoma,serif' : 'inherit', direction: activeLang === 'ar' ? 'rtl' : 'ltr' }}
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={langData[key] || ''}
-                  onChange={e => handleChange(key, e.target.value)}
-                  style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, fontSize: 14, fontFamily: activeLang === 'ar' ? '"Segoe UI",Arial,Tahoma,serif' : 'inherit', direction: activeLang === 'ar' ? 'rtl' : 'ltr' }}
-                />
-              )}
+          {(currentSection?.section === 'Navigation' ? navItems : keysToRender).map(({ key, label, type }) => (
+            <div
+              key={key}
+              style={{
+                marginBottom: 14,
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                padding: 12,
+                background: '#fff'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 650, fontSize: 13, color: '#374151', marginBottom: 6 }}>
+                  {label}
+                </div>
+                <code style={{ fontSize: 11, color: '#9ca3af' }}>{key}</code>
+              </div>
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 10,
+                  marginTop: 10
+                }}
+              >
+                {LANGUAGES.map((lang) => {
+                  const val = translations[lang.code]?.[key] || '';
+                  const isAr = lang.code === 'ar';
+                  const commonStyle = {
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontFamily: isAr ? '"Segoe UI",Arial,Tahoma,serif' : 'inherit',
+                    direction: isAr ? 'rtl' : 'ltr',
+                    boxSizing: 'border-box'
+                  };
+                  return (
+                    <div key={lang.code}>
+                      <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 6 }}>
+                        {lang.flag} {lang.code.toUpperCase()}
+                      </div>
+                      {type === 'textarea' ? (
+                        <textarea
+                          value={val}
+                          onChange={(e) => handleChange(lang.code, key, e.target.value)}
+                          rows={3}
+                          style={commonStyle}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={val}
+                          onChange={(e) => handleChange(lang.code, key, e.target.value)}
+                          style={commonStyle}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            );
-          })}
+          ))}
         </div>
       </div>
 

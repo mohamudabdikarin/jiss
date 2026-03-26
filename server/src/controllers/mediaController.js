@@ -12,19 +12,83 @@ exports.getAllMedia = async (req, res, next) => {
     const { folder, search, mimeType } = req.query;
 
     const query = {};
-    if (folder) query.folder = folder;
+    if (folder && folder !== 'articles') query.folder = folder;
+    if (folder === 'articles') query.folder = '___no_match___'; // Force empty match for Media coll if strict 'articles'
     if (mimeType) query.mimeType = { $regex: mimeType };
     if (search) query.$or = [
       { originalName: { $regex: search, $options: 'i' } },
       { tags: { $in: [new RegExp(search, 'i')] } }
     ];
 
-    const [media, total] = await Promise.all([
-      Media.find(query).populate('uploadedBy', 'name').sort(sort).skip(skip).limit(limit).lean(),
-      Media.countDocuments(query)
+    const pipeline = [{ $match: query }];
+
+    const includeArticles = (!folder || folder === 'articles') && (!mimeType || mimeType.includes('pdf'));
+    if (includeArticles) {
+      const articleQuery = { pdfUrl: { $exists: true, $ne: null } };
+      if (search) {
+        articleQuery.$or = [
+          { title: { $regex: search, $options: 'i' } },
+          { pdfFileName: { $regex: search, $options: 'i' } }
+        ];
+      }
+      pipeline.push({
+        $unionWith: {
+          coll: 'articles',
+          pipeline: [
+            { $match: articleQuery },
+            { $project: {
+                _id: 1,
+                originalName: { $ifNull: ['$pdfFileName', { $concat: ['$title', '.pdf'] }] },
+                filename: '$pdfFileName',
+                mimeType: { $literal: 'application/pdf' },
+                size: '$pdfFileSize',
+                url: '$pdfUrl',
+                folder: { $literal: 'articles' },
+                uploadedBy: '$createdBy',
+                createdAt: 1,
+                updatedAt: 1
+            }}
+          ]
+        }
+      });
+    }
+
+    const sortOption = Object.keys(sort || {}).length > 0 ? sort : { createdAt: -1 };
+
+    const dataPipeline = [
+      ...pipeline,
+      { $sort: sortOption },
+      { $skip: skip },
+      { $limit: limit },
+      { $lookup: {
+          from: 'users',
+          localField: 'uploadedBy',
+          foreignField: '_id',
+          as: 'uploadedBy'
+      }},
+      { $unwind: { path: '$uploadedBy', preserveNullAndEmptyArrays: true } }
+    ];
+
+    const countPipeline = [
+      ...pipeline,
+      { $count: 'total' }
+    ];
+
+    const [mediaItems, countResult] = await Promise.all([
+      Media.aggregate(dataPipeline),
+      Media.aggregate(countPipeline)
     ]);
 
-    return paginatedResponse(res, media, total, page, limit);
+    const total = countResult.length > 0 ? countResult[0].total : 0;
+    
+    const mappedMedia = mediaItems.map(item => {
+      if (item.uploadedBy) {
+        item.uploadedBy = { _id: item.uploadedBy._id, name: item.uploadedBy.name };
+      }
+      return item;
+    });
+
+    return paginatedResponse(res, mappedMedia, total, page, limit);
   } catch (error) { next(error); }
 };
 
@@ -116,6 +180,7 @@ exports.bulkDeleteMedia = async (req, res, next) => {
 exports.getFolders = async (req, res, next) => {
   try {
     const folders = await Media.distinct('folder');
-    return successResponse(res, folders);
+    if (!folders.includes('articles')) folders.push('articles');
+    return successResponse(res, folders.sort());
   } catch (error) { next(error); }
 };

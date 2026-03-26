@@ -791,7 +791,7 @@ a.btn-danger:active { color: #fff; text-decoration: none; }
 
 /* ===== MEDIA GRID ===== */
 .media-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 16px;
 }
 .media-item {
@@ -801,7 +801,24 @@ a.btn-danger:active { color: #fff; text-decoration: none; }
 }
 .media-item:hover { border-color: var(--primary); box-shadow: var(--card-shadow-hover); }
 .media-item.selected { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary); }
-.media-thumb { width: 100%; height: 140px; object-fit: cover; display: block; background: var(--content-bg); }
+/* .media-thumb is now a container div */
+.media-thumb {
+  width: 100%; height: 140px; background: var(--content-bg);
+  overflow: hidden; position: relative;
+}
+.media-thumb-img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+/* Hover action buttons inside .media-thumb */
+.media-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.media-item:hover .media-actions {
+  opacity: 1;
+  pointer-events: all;
+}
 .media-info { padding: 10px 12px; }
 .media-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .media-size { font-size: 11px; color: var(--text-muted); }

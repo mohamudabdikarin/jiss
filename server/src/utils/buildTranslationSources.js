@@ -120,21 +120,38 @@ const HEADER_NAV_KEY = {
   search: 'nav_search'
 };
 
-function applyNavigationSources(sources, items, preferSbPublished = false) {
+function applyNavigationSources(
+  sources,
+  items,
+  {
+    includeHeaderNavKeys = true,
+    includeSidebarKeys = true,
+    includeTopbarKeys = false
+  } = {}
+) {
   if (!Array.isArray(items)) return;
   for (const item of items) {
     if (item.isVisible === false) continue;
     const slug = slugFromNavUrl(item.url);
     if (!slug) continue;
     const navKey = HEADER_NAV_KEY[slug];
-    if (navKey && item.label) sources[navKey] = item.label;
-    if (slug === 'published' && item.label) {
-      sources.sb_published = item.label;
-      if (preferSbPublished) sources.topbar_published = item.label;
+    // Dynamic header nav key: allows translating custom nav items (e.g. slug "test" => nav_test)
+    if (includeHeaderNavKeys && item.label) {
+      sources[`nav_${slug}`] = item.label;
     }
-    if (slug === 'preprints' && item.label) {
+
+    if (includeHeaderNavKeys && navKey && item.label) sources[navKey] = item.label;
+    if (includeSidebarKeys && slug === 'published' && item.label) {
+      sources.sb_published = item.label;
+    }
+    if (includeSidebarKeys && slug === 'preprints' && item.label) {
       sources.sb_preprint = item.label;
-      if (preferSbPublished) sources.topbar_preprint = item.label;
+    }
+    if (includeTopbarKeys && slug === 'published' && item.label) {
+      sources.topbar_published = item.label;
+    }
+    if (includeTopbarKeys && slug === 'preprints' && item.label) {
+      sources.topbar_preprint = item.label;
     }
   }
 }
@@ -354,10 +371,23 @@ async function buildTranslationSources() {
   if (footer?.content) sources.footer_text = footer.content;
 
   const headerNav = await Navigation.findOne({ location: 'header', isActive: true }).lean();
-  if (headerNav?.items) applyNavigationSources(sources, headerNav.items, false);
+  if (headerNav?.items) {
+    applyNavigationSources(sources, headerNav.items, {
+      includeHeaderNavKeys: true,
+      includeSidebarKeys: false,
+      includeTopbarKeys: true
+    });
+  }
 
   const sidebarNav = await Navigation.findOne({ location: 'sidebar', isActive: true }).lean();
-  if (sidebarNav?.items) applyNavigationSources(sources, sidebarNav.items, true);
+  if (sidebarNav?.items) {
+    // Important: sidebar should never overwrite header nav / topbar translation source labels.
+    applyNavigationSources(sources, sidebarNav.items, {
+      includeHeaderNavKeys: false,
+      includeSidebarKeys: true,
+      includeTopbarKeys: false
+    });
+  }
 
   return sources;
 }

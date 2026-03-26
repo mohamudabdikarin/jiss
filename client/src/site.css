@@ -10,8 +10,9 @@
   --text: #222;
   --text-light: #555;
   --white: #fff;
-  --page-max: 100%;
-  --page-padding: 0 20px;
+  /* Centered reading column — IEEE-style gutters on wide viewports */
+  --content-max: 1200px;
+  --content-gutter: clamp(16px, 4vw, 52px);
 }
 
 body {
@@ -32,6 +33,7 @@ a:hover { text-decoration: underline; color: var(--accent2); }
 /* ===== PAGE SHELL ===== */
 .site-shell {
   width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -297,7 +299,7 @@ body[dir="rtl"] .sidebar {
 /* Main content */
 main {
   flex: 1;
-  padding: 30px 36px 40px;
+  padding: 30px 24px 40px;
   min-width: 0;
 }
 main h1 {
@@ -653,7 +655,11 @@ body[dir="rtl"] .board-section h2 { border-left: none; border-right: 4px solid v
 .page {
   display: none;
   flex: 1;
-  padding: 0 20px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 var(--content-gutter);
   box-sizing: border-box;
 }
 .page.active { display: flex; flex-direction: column; }
@@ -938,15 +944,26 @@ footer {
   font-family: Arial, sans-serif;
   font-size: 12px;
   text-align: center;
-  padding: 14px 20px;
+  padding: 14px 0;
   margin-top: auto;
+  box-sizing: border-box;
+}
+footer > span {
+  display: block;
+  max-width: var(--content-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--content-gutter);
+  padding-right: var(--content-gutter);
   box-sizing: border-box;
 }
 footer a { color: #aac4e8; }
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 900px) {
-  :root { --page-padding: 0 20px; }
+  :root {
+    --content-gutter: clamp(14px, 4vw, 28px);
+  }
 }
 @media (max-width: 700px) {
   .page-wrapper { flex-direction: column; }
@@ -972,6 +989,13 @@ footer a { color: #aac4e8; }
   .article-toc,
   .lang-switcher { display: none !important; }
   .article-printable { max-width: 100%; }
+  .page {
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
   .page-wrapper { display: block !important; }
   body { font-size: 12pt; }
   a[href]::after { content: none; }

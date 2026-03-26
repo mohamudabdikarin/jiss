@@ -1,6 +1,33 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+
+/**
+ * Quill editor with local state. Prevents cursor-reset / lost-space bug that
+ * occurs when ReactQuill is fully controlled and the parent re-renders on every
+ * keystroke. The `html` prop is only read on mount; after that the component
+ * drives Quill from its own state and only notifies the parent via onChange.
+ * Use `key={block.id}` on the parent so this remounts if the block is replaced.
+ */
+function QuillBlockField({ html, onChange, modules, formats, placeholder }) {
+  const [localHtml, setLocalHtml] = useState(html ?? '');
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const handleChange = useCallback((v) => {
+    setLocalHtml(v);
+    onChangeRef.current(v);
+  }, []);
+  return (
+    <ReactQuill
+      theme="snow"
+      value={localHtml}
+      onChange={handleChange}
+      modules={modules}
+      formats={formats}
+      placeholder={placeholder}
+    />
+  );
+}
 import { sectionsAPI } from '../../../api';
 import {
   FiMenu,
@@ -220,9 +247,19 @@ function BlockRow({
   isInsertAnchor,
   onSelectInsertAfter
 }) {
+  const isQuillActive = () => {
+    const ae = typeof document !== 'undefined' ? document.activeElement : null;
+    if (!ae || !(ae instanceof Element)) return false;
+    return Boolean(
+      ae.closest('.ql-editor, .ql-container, [contenteditable="true"]') ||
+      ae.classList.contains('ql-editor')
+    );
+  };
+
   const onRowClick = (e) => {
     if (!onSelectInsertAfter) return;
-    if (e.target.closest('button, input, textarea, select, .ql-editor, [contenteditable="true"], a, summary')) return;
+    const target = e.target;
+    if (target instanceof Element && target.closest('button, input, textarea, select, .ql-editor, [contenteditable="true"], a, summary')) return;
     onSelectInsertAfter(index);
   };
 
@@ -238,6 +275,9 @@ function BlockRow({
       onKeyDown={
         onSelectInsertAfter
           ? (e) => {
+              if (isQuillActive()) return;
+              const target = e.target;
+              if (target instanceof Element && target.closest('button, input, textarea, select, .ql-editor, [contenteditable="true"], a, summary')) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onSelectInsertAfter(index);
@@ -304,9 +344,8 @@ function renderBlockFields(block, index, updateBlockField) {
     case 'quote':
       return (
         <div className="pb-quill">
-          <ReactQuill
-            theme="snow"
-            value={block.html || ''}
+          <QuillBlockField
+            html={block.html || ''}
             onChange={(html) => setField('html', html)}
             modules={SNOW_MODULES}
             formats={SNOW_FORMATS}
@@ -325,9 +364,8 @@ function renderBlockFields(block, index, updateBlockField) {
             </select>
           </div>
           <div className="pb-quill">
-            <ReactQuill
-              theme="snow"
-              value={block.html || ''}
+            <QuillBlockField
+              html={block.html || ''}
               onChange={(html) => setField('html', html)}
               modules={SNOW_MODULES}
               formats={SNOW_FORMATS}
@@ -395,9 +433,8 @@ function renderBlockFields(block, index, updateBlockField) {
           <div>
             <div className="pb-meta-label">Column 1</div>
             <div className="pb-quill">
-              <ReactQuill
-                theme="snow"
-                value={block.col1Html || ''}
+              <QuillBlockField
+                html={block.col1Html || ''}
                 onChange={(html) => setField('col1Html', html)}
                 modules={SNOW_MODULES}
                 formats={SNOW_FORMATS}
@@ -407,9 +444,8 @@ function renderBlockFields(block, index, updateBlockField) {
           <div>
             <div className="pb-meta-label">Column 2</div>
             <div className="pb-quill">
-              <ReactQuill
-                theme="snow"
-                value={block.col2Html || ''}
+              <QuillBlockField
+                html={block.col2Html || ''}
                 onChange={(html) => setField('col2Html', html)}
                 modules={SNOW_MODULES}
                 formats={SNOW_FORMATS}
@@ -445,9 +481,8 @@ function renderBlockFields(block, index, updateBlockField) {
           </div>
           <div className="pb-meta-label">Body</div>
           <div className="pb-quill">
-            <ReactQuill
-              theme="snow"
-              value={block.bodyHtml || ''}
+            <QuillBlockField
+              html={block.bodyHtml || ''}
               onChange={(html) => setField('bodyHtml', html)}
               modules={SNOW_MODULES}
               formats={SNOW_FORMATS}
@@ -721,9 +756,8 @@ function renderBlockFields(block, index, updateBlockField) {
             Use the editor below for contact lines, bold labels, links, and colors. Numbers without a unit become px.
           </p>
           <div className="pb-quill">
-            <ReactQuill
-              theme="snow"
-              value={block.html || ''}
+            <QuillBlockField
+              html={block.html || ''}
               onChange={(html) => setField('html', html)}
               modules={SNOW_MODULES}
               formats={SNOW_FORMATS}
@@ -1011,34 +1045,6 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
       </div>
 
       <div style={{ padding: '16px 20px 24px' }}>
-        <div className="pb-insert-hint pb-insert-hint--top" role="status">
-          {blocks.length === 0 ? (
-            <span>Start your page below — pick a block type from the menu.</span>
-          ) : blockInsertAfterIndex === null ? (
-            <span>
-              <strong>End of page</strong> — adding here appends at the bottom. Click any block to move the add control <strong>under that block</strong>, or{' '}
-              <button type="button" className="pb-insert-hint-link" onClick={() => selectInsertAnchor(-1)}>
-                add at the very top
-              </button>
-              .
-            </span>
-          ) : blockInsertAfterIndex < 0 ? (
-            <span>
-              <strong>Top of page</strong> — new blocks go above the first block.{' '}
-              <button type="button" className="pb-insert-hint-link" onClick={() => selectInsertAnchor(null)}>
-                Switch to add at the end instead
-              </button>
-            </span>
-          ) : (
-            <span>
-              <strong>After block {blockInsertAfterIndex + 1}</strong> — use the highlighted control below.{' '}
-              <button type="button" className="pb-insert-hint-link" onClick={() => selectInsertAnchor(null)}>
-                Add at end instead
-              </button>
-            </span>
-          )}
-        </div>
-
         {blocks.length === 0 ? (
           <div
             ref={activeInsertRef}

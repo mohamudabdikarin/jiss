@@ -4,6 +4,30 @@ import { pagesAPI, sectionsAPI } from '../../../api';
 import { FiSave, FiArrowLeft, FiPlus, FiTrash2, FiEye, FiEyeOff, FiEdit2, FiX, FiCopy, FiArrowUp, FiArrowDown } from 'react-icons/fi';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+
+/**
+ * Quill editor with local state. Prevents cursor/space-loss that happens when
+ * ReactQuill is fully controlled and the parent state updates on every keystroke.
+ * The `html` prop is read only on mount; use `key` to remount when the section changes.
+ */
+function QuillField({ html, onChange, modules, style }) {
+  const [localHtml, setLocalHtml] = useState(html ?? '');
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const handleChange = useCallback((v) => {
+    setLocalHtml(v);
+    onChangeRef.current(v);
+  }, []);
+  return (
+    <ReactQuill
+      theme="snow"
+      value={localHtml}
+      onChange={handleChange}
+      modules={modules}
+      style={style}
+    />
+  );
+}
 import toast from 'react-hot-toast';
 import PageBlockEditor from './PageBlockEditor';
 
@@ -428,7 +452,6 @@ export default function PageEditor() {
 
   const pageBlockSection = sections.find((s) => s.type === 'page_blocks');
   const legacySections = sections.filter((s) => s.type !== 'page_blocks');
-  const pageBlocksIndex = sections.findIndex((s) => s.type === 'page_blocks');
   const noSectionRowToAnchor =
     pageBlockSection ? legacySections.length === 0 : sections.length === 0;
 
@@ -447,7 +470,7 @@ export default function PageEditor() {
             <p className="page-subtitle">
               {isEdit
                 ? (sections.some((s) => s.type === 'page_blocks')
-                  ? 'Blocks save automatically; use Save for title, slug, template, and extra sections.'
+                  ? 'Blocks save automatically; use Save for title, slug, template, and page settings.'
                   : page.title)
                 : 'Create a new page — you will add text and images on the next step.'}
             </p>
@@ -507,7 +530,7 @@ export default function PageEditor() {
             <div className="card">
               <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
                 <h3 className="card-title">
-                  {pageBlockSection ? `Extra sections — optional (${legacySections.length})` : `Sections (${sections.length})`}
+                  {`Sections (${pageBlockSection ? legacySections.length : sections.length})`}
                 </h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                   <button
@@ -531,17 +554,7 @@ export default function PageEditor() {
                 </div>
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
-                {pageBlockSection ? (
-                  <>
-                    <strong>1)</strong> Click a row to highlight where the new section should go. <strong>2)</strong> Press <strong>Add section here</strong>.
-                    Or use <strong>Add section below main content</strong> / <strong>Add at end</strong>.
-                  </>
-                ) : (
-                  <>
-                    <strong>1)</strong> Click a section row to select the insert position. <strong>2)</strong> Press <strong>Add section here</strong>.
-                    Use <strong>Add first at top</strong> or <strong>Add at end</strong> when you do not need a row anchor.
-                  </>
-                )}
+                Click a section row to choose where to insert, then press <strong>Add section here</strong>. Use <strong>Add at end</strong> to append.
               </p>
               <div className="form-group" style={{ marginBottom: 14 }}>
                 <label className="form-label">New section template</label>
@@ -555,25 +568,8 @@ export default function PageEditor() {
                     <option key={t} value={t}>{sectionTypeSelectLabel(t)}</option>
                   ))}
                 </select>
-                <p className="form-helper">Choose the type before you add. Main page blocks use <strong>Add block editor</strong> above, not this list.</p>
+                <p className="form-helper">Choose the section type, then use the add buttons above.</p>
               </div>
-              {pageBlockSection && pageBlocksIndex >= 0 && (
-                <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => {
-                      setSectionInsertAfterIndex(null);
-                      handleAddSectionAtPosition(pageBlocksIndex);
-                    }}
-                  >
-                    <FiPlus /> Add section below main content
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSectionInsertAfterIndex(pageBlocksIndex)}>
-                    Only select this position
-                  </button>
-                </div>
-              )}
               {!pageBlockSection && sections.length > 0 && (
                 <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSectionInsertAfterIndex(-1)}>
@@ -587,7 +583,7 @@ export default function PageEditor() {
               {(pageBlockSection ? legacySections : sections).length === 0 ? (
                 <div className="empty-state" style={{ padding: 30, textAlign: 'center' }}>
                   <p>
-                    {pageBlockSection ? 'No extra sections yet — use the button above to add one below your main content.' : 'No sections yet — use Add block editor above, or add a first section here.'}
+                    No sections yet. Choose a template and click <strong>Add at end</strong>.
                   </p>
                   {!pageBlockSection ? (
                     <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => handleAddSectionAtPosition(-1)}>
@@ -759,9 +755,9 @@ export default function PageEditor() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Body (use toolbar for bold, underline, headings)</label>
-                      <ReactQuill
-                        theme="snow"
-                        value={sectionDraft.content?.html ?? sectionDraft.content?.body ?? ''}
+                      <QuillField
+                        key={editingSection}
+                        html={sectionDraft.content?.html ?? sectionDraft.content?.body ?? ''}
                         onChange={v => updateSectionContent(sectionDraft.type === 'text' ? 'body' : 'html', v)}
                         modules={QUILL_MODULES}
                         style={{ minHeight: 200, marginBottom: 60 }}
@@ -1119,9 +1115,9 @@ export default function PageEditor() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Body (HTML)</label>
-                      <ReactQuill
-                        theme="snow"
-                        value={sectionDraft.content?.body ?? ''}
+                      <QuillField
+                        key={editingSection}
+                        html={sectionDraft.content?.body ?? ''}
                         onChange={v => updateSectionContent('body', v)}
                         modules={QUILL_MODULES}
                         style={{ minHeight: 120, marginBottom: 48 }}

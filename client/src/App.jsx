@@ -23,6 +23,25 @@ function readStoredLang() {
   return 'en';
 }
 
+/**
+ * Parse location.hash into a page slug. Used on load, hashchange, and for initial useState.
+ * Returns null only for malformed segments (so hashchange can no-op). Empty / missing → 'home'.
+ */
+function parseLocationHashToPage(hashString) {
+  let raw = (hashString ?? '').replace(/^#\/?/, '');
+  const qi = raw.indexOf('?');
+  if (qi >= 0) raw = raw.slice(0, qi);
+  const hash = raw.trim();
+  if (!hash || hash === 'home') return 'home';
+  if (/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(hash)) return hash;
+  return null;
+}
+
+function readInitialPageFromUrl() {
+  if (typeof window === 'undefined') return 'home';
+  return parseLocationHashToPage(window.location.hash) ?? 'home';
+}
+
 // Map nav URL slugs to translation keys (so nav/footer use t instead of API labels)
 const SLUG_TO_T_KEY = {
   home: 'nav_home', preprints: 'nav_preprints', published: 'nav_published', search: 'nav_search',
@@ -30,7 +49,7 @@ const SLUG_TO_T_KEY = {
   indexing: 'nav_indexing', ethics: 'nav_ethics', apc: 'nav_apc', contact: 'nav_contact'
 };
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('home');
+  const [currentPage, setCurrentPage] = useState(readInitialPageFromUrl);
   const [currentLang, setCurrentLang] = useState(readStoredLang);
   const [t, setT] = useState(() => ({
     ...(fallbackTranslations[readStoredLang()] || fallbackTranslations.en)
@@ -308,26 +327,19 @@ export default function App() {
     }
   }, [currentPage, redirectsMap]);
 
-  // Hash routing: sync URL hash with currentPage (enables opening #published/#preprints in new tab)
-  const hashToPage = (h) => {
-    const hash = (h || window.location.hash).replace(/^#\/?/, '');
-    if (hash === 'published' || hash === 'preprints' || hash === 'search' || hash === 'home') return hash;
-    if (hash && ['aims', 'editorial', 'authors', 'reviewers', 'indexing', 'ethics', 'apc', 'contact'].includes(hash)) return hash;
-    return null;
-  };
+  // Hash routing: sync URL with currentPage (refresh, new tab, back/forward).
   useEffect(() => {
     const applyHash = () => {
-      const page = hashToPage(window.location.hash);
-      if (page && page !== currentPage) {
-        setArticleSlug(null);
-        setCurrentPage(page);
-        setPageNotFound(false);
-      }
+      const page = parseLocationHashToPage(window.location.hash);
+      if (page == null) return;
+      setArticleSlug(null);
+      setCurrentPage(page);
+      setPageNotFound(false);
     };
     applyHash();
     window.addEventListener('hashchange', applyHash);
     return () => window.removeEventListener('hashchange', applyHash);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen for maintenance mode (from any API call)
   useEffect(() => {
@@ -397,7 +409,9 @@ export default function App() {
   };
 
   const getTranslatedLabel = (slug, apiLabel, t) => {
-    const key = SLUG_TO_T_KEY[slug];
+    const fixedKey = SLUG_TO_T_KEY[slug];
+    const dynamicKey = `nav_${slug}`;
+    const key = fixedKey || dynamicKey;
     return key && t?.[key] ? t[key] : apiLabel;
   };
 
@@ -424,7 +438,18 @@ export default function App() {
 
   const seoData = currentPage === 'article' && articleData
     ? { metaTitle: articleData.title, metaDescription: (articleData.abstract || '').replace(/<[^>]+>/g, '').slice(0, 160), metaKeywords: articleData.keywords }
-    : pageData?.seo || siteSettings?.defaultSEO;
+    : (() => {
+        const pageSeo = pageData?.seo || {};
+        const fallbackMetaDescription =
+          (pageSeo.metaDescription != null && String(pageSeo.metaDescription).trim() !== '')
+            ? pageSeo.metaDescription
+            : ((pageData?.description != null && String(pageData.description).trim() !== '')
+                ? String(pageData.description).trim()
+                : undefined);
+        const merged = { ...pageSeo };
+        if (fallbackMetaDescription) merged.metaDescription = fallbackMetaDescription;
+        return Object.keys(merged).length > 0 ? merged : (siteSettings?.defaultSEO || null);
+      })();
   const pageTitle = currentPage === 'article' && articleData
     ? articleData.title
     : currentPage === 'preprints'
