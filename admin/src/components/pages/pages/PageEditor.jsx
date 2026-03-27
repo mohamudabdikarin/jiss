@@ -2,34 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { pagesAPI, sectionsAPI } from '../../../api';
 import { FiSave, FiArrowLeft, FiPlus, FiTrash2, FiEye, FiEyeOff, FiEdit2, FiX, FiCopy, FiArrowUp, FiArrowDown } from 'react-icons/fi';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
-
-/**
- * Quill editor with local state. Prevents cursor/space-loss that happens when
- * ReactQuill is fully controlled and the parent state updates on every keystroke.
- * The `html` prop is read only on mount; use `key` to remount when the section changes.
- */
-function QuillField({ html, onChange, modules, style }) {
-  const [localHtml, setLocalHtml] = useState(html ?? '');
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const handleChange = useCallback((v) => {
-    setLocalHtml(v);
-    onChangeRef.current(v);
-  }, []);
-  return (
-    <ReactQuill
-      theme="snow"
-      value={localHtml}
-      onChange={handleChange}
-      modules={modules}
-      style={style}
-    />
-  );
-}
 import toast from 'react-hot-toast';
 import PageBlockEditor from './PageBlockEditor';
+import RichTextEditor from './RichTextEditor';
 
 const SECTION_TYPES = ['hero', 'text', 'richtext', 'page_blocks', 'image', 'gallery', 'cards', 'cta', 'accordion', 'banner', 'contact', 'video', 'stats', 'buttons', 'tag_badges', 'testimonials', 'team', 'timeline', 'custom_html'];
 
@@ -482,176 +457,19 @@ export default function PageEditor() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-        <div className="page-editor-layout-grid" style={{ gap: 24, alignItems: 'start' }}>
-          <div style={{ minWidth: 0 }}>
-          <div className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div className="card" style={{ flex: '1 1 300px' }}>
             <div className="form-group">
               <label className="form-label">Page Title</label>
               <input className="form-input" value={page.title} onChange={e => setPage({ ...page, title: e.target.value })} placeholder="Enter page title" />
             </div>
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Slug</label>
-                <input className="form-input" value={page.slug} onChange={e => setPage({ ...page, slug: e.target.value })} placeholder="page-url-slug" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Template</label>
-                <select className="form-select" value={page.template} onChange={e => setPage({ ...page, template: e.target.value })}>
-                  <option value="default">Default</option>
-                  <option value="articles">Articles</option>
-                  <option value="preprint">Preprint</option>
-                  <option value="published">Published</option>
-                  <option value="contact">Contact</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-            </div>
             <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea className="form-textarea" value={page.description || ''} onChange={e => setPage({ ...page, description: e.target.value })} placeholder="Brief description" rows={3} />
+              <label className="form-label">Slug</label>
+              <input className="form-input" value={page.slug} onChange={e => setPage({ ...page, slug: e.target.value })} placeholder="page-url-slug" />
             </div>
           </div>
 
-          {isEdit && pageBlockSection && (
-            <PageBlockEditor ref={blockEditorRef} section={pageBlockSection} onSectionSaved={onPageBlocksSaved} />
-          )}
-
-          {isEdit && !pageBlockSection && (
-            <div className="card" style={{ marginBottom: 20, borderStyle: 'dashed' }}>
-              <h3 className="card-title" style={{ marginBottom: 8 }}>Page content</h3>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
-                This page has no block editor yet (older page). One click adds the simple editor: headings, text with a <strong>visible</strong> formatting bar, images, buttons, and more.
-              </p>
-              <button type="button" className="btn btn-primary" onClick={handleInitPageBlocks}><FiPlus /> Add block editor</button>
-            </div>
-          )}
-
-          {isEdit && (
-            <div className="card">
-              <div className="card-header" style={{ flexWrap: 'wrap', gap: 10 }}>
-                <h3 className="card-title">
-                  {`Sections (${pageBlockSection ? legacySections.length : sections.length})`}
-                </h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={handleAddSectionAfterSelection}
-                    disabled={noSectionRowToAnchor}
-                    title={
-                      noSectionRowToAnchor
-                        ? 'Add a section using the buttons below first'
-                        : sectionInsertAfterIndex === null
-                          ? 'Click a section row below to set position'
-                          : 'Insert a new section after the highlighted row'
-                    }
-                  >
-                    <FiPlus /> Add section here
-                  </button>
-                  <button type="button" className="btn btn-outline btn-sm" onClick={handleAddSectionAtEnd} title="Append at end of page">
-                    <FiPlus /> Add at end
-                  </button>
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>
-                Click a section row to choose where to insert, then press <strong>Add section here</strong>. Use <strong>Add at end</strong> to append.
-              </p>
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label className="form-label">New section template</label>
-                <select
-                  className="form-select"
-                  style={{ maxWidth: 420 }}
-                  value={newSectionTemplate}
-                  onChange={(e) => setNewSectionTemplate(e.target.value)}
-                >
-                  {NEW_SECTION_TEMPLATE_TYPES.map((t) => (
-                    <option key={t} value={t}>{sectionTypeSelectLabel(t)}</option>
-                  ))}
-                </select>
-                <p className="form-helper">Choose the section type, then use the add buttons above.</p>
-              </div>
-              {!pageBlockSection && sections.length > 0 && (
-                <div style={{ marginBottom: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSectionInsertAfterIndex(-1)}>
-                    Select: insert at top
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleAddSectionAtPosition(-1)}>
-                    <FiPlus /> Add first at top
-                  </button>
-                </div>
-              )}
-              {(pageBlockSection ? legacySections : sections).length === 0 ? (
-                <div className="empty-state" style={{ padding: 30, textAlign: 'center' }}>
-                  <p>
-                    No sections yet. Choose a template and click <strong>Add at end</strong>.
-                  </p>
-                  {!pageBlockSection ? (
-                    <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: 14 }} onClick={() => handleAddSectionAtPosition(-1)}>
-                      <FiPlus /> Add first section
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                (pageBlockSection ? legacySections : sections).map((section) => {
-                  const fullIndex = sections.indexOf(section);
-                  return (
-                    <div
-                      key={section._id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => setSectionInsertAfterIndex(fullIndex)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          setSectionInsertAfterIndex(fullIndex);
-                        }
-                      }}
-                      style={{
-                        padding: '14px 12px',
-                        margin: '0 -12px',
-                        borderBottom: '1px solid var(--card-border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexWrap: 'wrap',
-                        gap: 10,
-                        cursor: 'pointer',
-                        borderRadius: 8,
-                        outline: 'none',
-                        transition: 'box-shadow 0.15s, background 0.15s',
-                        boxShadow: sectionInsertAfterIndex === fullIndex ? '0 0 0 2px var(--primary)' : 'none',
-                        background: sectionInsertAfterIndex === fullIndex ? 'var(--primary-bg)' : 'transparent'
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, flex: 1, minWidth: 200 }}>
-                        <div>
-                          <strong>{section.name}</strong>
-                          <span className={`badge badge-${section.isVisible ? 'published' : 'draft'}`} style={{ marginLeft: 8 }}>{section.type}</span>
-                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                            {sectionInsertAfterIndex === fullIndex ? 'Selected — click “Add section here” above' : 'Click row to insert after this section'}
-                          </span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                        <button type="button" className="btn btn-outline btn-sm" disabled={fullIndex <= 0} onClick={() => handleMoveSection(fullIndex, -1)} title="Move up"><FiArrowUp /></button>
-                        <button type="button" className="btn btn-outline btn-sm" disabled={fullIndex < 0 || fullIndex >= sections.length - 1} onClick={() => handleMoveSection(fullIndex, 1)} title="Move down"><FiArrowDown /></button>
-                        <button className="btn btn-outline btn-sm" onClick={() => openSectionEdit(section)} title="Edit section"><FiEdit2 /></button>
-                        <button className="btn btn-outline btn-sm" onClick={() => handleDuplicateSection(section._id)} title="Duplicate"><FiCopy /></button>
-                        <button className="btn btn-outline btn-sm" onClick={() => handleToggleVisibility(section._id)} title={section.isVisible ? 'Hide' : 'Show'}>
-                          {section.isVisible ? <FiEye /> : <FiEyeOff />}
-                        </button>
-                        <button className="btn btn-outline btn-sm" onClick={() => handleDeleteSection(section._id)} style={{ color: 'var(--danger)' }} title="Delete"><FiTrash2 /></button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-          </div>
-
-          <div style={{ minWidth: 0 }}>
-          <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card" style={{ flex: '0 1 250px' }}>
             <h3 className="card-title" style={{ marginBottom: 16 }}>Settings</h3>
             <div className="form-group">
               <label className="form-label">Status</label>
@@ -669,7 +487,7 @@ export default function PageEditor() {
             </div>
           </div>
 
-          <div className="card">
+          <div className="card" style={{ flex: '1 1 300px' }}>
             <h3 className="card-title" style={{ marginBottom: 16 }}>SEO</h3>
             <div className="form-group">
               <label className="form-label">Meta Title</label>
@@ -680,8 +498,21 @@ export default function PageEditor() {
               <textarea className="form-textarea" rows={3} value={page.seo?.metaDescription || ''} onChange={e => setPage({ ...page, seo: { ...page.seo, metaDescription: e.target.value } })} />
             </div>
           </div>
-          </div>
         </div>
+
+        {isEdit && pageBlockSection && (
+          <PageBlockEditor ref={blockEditorRef} section={pageBlockSection} onSectionSaved={onPageBlocksSaved} />
+        )}
+
+        {isEdit && !pageBlockSection && (
+          <div className="card" style={{ borderStyle: 'dashed' }}>
+            <h3 className="card-title" style={{ marginBottom: 8 }}>Page content</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 }}>
+              This page has no block editor yet (older page). One click adds the simple editor: headings, text with a <strong>visible</strong> formatting bar, images, buttons, and more.
+            </p>
+            <button type="button" className="btn btn-primary" onClick={handleInitPageBlocks}><FiPlus /> Add block editor</button>
+          </div>
+        )}
 
           {editingSection && sectionDraft && (
             <div
@@ -755,12 +586,11 @@ export default function PageEditor() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Body (use toolbar for bold, underline, headings)</label>
-                      <QuillField
+                      <RichTextEditor
                         key={editingSection}
-                        html={sectionDraft.content?.html ?? sectionDraft.content?.body ?? ''}
+                        value={sectionDraft.content?.html ?? sectionDraft.content?.body ?? ''}
                         onChange={v => updateSectionContent(sectionDraft.type === 'text' ? 'body' : 'html', v)}
-                        modules={QUILL_MODULES}
-                        style={{ minHeight: 200, marginBottom: 60 }}
+                        placeholder="Type your content here"
                       />
                     </div>
                   </>
@@ -1115,12 +945,11 @@ export default function PageEditor() {
                     </div>
                     <div className="form-group">
                       <label className="form-label">Body (HTML)</label>
-                      <QuillField
+                      <RichTextEditor
                         key={editingSection}
-                        html={sectionDraft.content?.body ?? ''}
+                        value={sectionDraft.content?.body ?? ''}
                         onChange={v => updateSectionContent('body', v)}
-                        modules={QUILL_MODULES}
-                        style={{ minHeight: 120, marginBottom: 48 }}
+                        placeholder="CTA body content"
                       />
                     </div>
                     <div className="form-row">

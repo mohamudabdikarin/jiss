@@ -1004,3 +1004,58 @@ a.btn-danger:active { color: #fff; text-decoration: none; }
 @media (min-width: 769px) and (max-width: 1024px) {
   :root { --sidebar-width-collapsed: 84px; }
 }
+
+
+/* ===== LANGUAGE TABS ===== */
+.lang-tabs-wrapper {
+  margin-bottom: 12px;
+}
+
+.lang-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid var(--card-border);
+  padding-bottom: 0;
+}
+
+.lang-tab {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font);
+  margin-bottom: -2px;
+}
+
+.lang-tab:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.lang-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  background: var(--primary-bg);
+}
+
+.lang-tab-content {
+  padding: 12px 0;
+}
+
+/* ===== RESPONSIVE LANGUAGE TABS ===== */
+@media (max-width: 640px) {
+  .lang-tabs {
+    flex-wrap: wrap;
+  }
+  
+  .lang-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

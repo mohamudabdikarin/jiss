@@ -20,7 +20,7 @@ exports.register = async (req, res, next) => {
   try {
     const { email, password, name, role } = req.body;
     const existing = await User.findOne({ email });
-    if (existing) return errorResponse(res, 'Email already registered', 400);
+    if (existing) return errorResponse(res, 'This email is already registered. Please use a different email or login', 400);
 
     const user = await User.create({ email, password, name, role: role || 'admin' });
     auditService.log(req.user._id, 'create', 'User', user._id, `Created user: ${email}`, null, req);
@@ -29,17 +29,23 @@ exports.register = async (req, res, next) => {
     delete userData.password;
     delete userData.refreshToken;
     return successResponse(res, userData, 'User registered successfully', 201);
-  } catch (error) { next(error); }
+  } catch (error) { 
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message).join(', ');
+      return errorResponse(res, `Registration failed: ${messages}`, 400);
+    }
+    next(error); 
+  }
 };
 
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
     const user = await User.findOne({ email }).select('+password +refreshToken');
-    if (!user) return errorResponse(res, 'Invalid email or password', 401);
+    if (!user) return errorResponse(res, 'Invalid email or password. Please check your credentials', 401);
 
     if (user.isLocked()) {
-      return errorResponse(res, 'Account is locked. Try again later.', 423);
+      return errorResponse(res, 'Account is locked due to multiple failed login attempts. Please try again in 15 minutes', 423);
     }
 
     const isMatch = await user.comparePassword(password);
@@ -49,10 +55,14 @@ exports.login = async (req, res, next) => {
         user.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
       }
       await user.save();
-      return errorResponse(res, 'Invalid email or password', 401);
+      const remaining = 5 - user.loginAttempts;
+      if (remaining > 0) {
+        return errorResponse(res, `Invalid email or password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before account lock`, 401);
+      }
+      return errorResponse(res, 'Invalid email or password. Account is now locked for 15 minutes', 401);
     }
 
-    if (!user.isActive) return errorResponse(res, 'Account has been deactivated', 401);
+    if (!user.isActive) return errorResponse(res, 'Your account has been deactivated. Please contact an administrator', 401);
 
     // Reset login attempts
     user.loginAttempts = 0;
@@ -92,12 +102,12 @@ exports.logout = async (req, res, next) => {
 exports.refreshToken = async (req, res, next) => {
   try {
     const token = req.cookies?.refreshToken || req.body?.refreshToken;
-    if (!token) return errorResponse(res, 'No refresh token provided', 401);
+    if (!token) return errorResponse(res, 'No refresh token provided. Please login again', 401);
 
     const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id).select('+refreshToken');
     if (!user || user.refreshToken !== token) {
-      return errorResponse(res, 'Invalid refresh token', 401);
+      return errorResponse(res, 'Invalid or expired refresh token. Please login again', 401);
     }
 
     const accessToken = generateAccessToken(user._id);
@@ -107,9 +117,9 @@ exports.refreshToken = async (req, res, next) => {
 
     res.cookie('refreshToken', newRefreshToken, getRefreshTokenCookieOptions());
 
-    return successResponse(res, { accessToken, refreshToken: newRefreshToken }, 'Token refreshed');
+    return successResponse(res, { accessToken, refreshToken: newRefreshToken }, 'Token refreshed successfully');
   } catch (error) {
-    return errorResponse(res, 'Invalid refresh token', 401);
+    return errorResponse(res, 'Session expired. Please login again', 401);
   }
 };
 
@@ -122,12 +132,24 @@ exports.updateProfile = async (req, res, next) => {
     const { name, email, avatar } = req.body;
     const updates = {};
     if (name) updates.name = name;
-    if (email) updates.email = email;
+    if (email) {
+      const existing = await User.findOne({ email, _id: { $ne: req.user._id } });
+      if (existing) {
+        return errorResponse(res, 'This email is already in use by another account', 400);
+      }
+      updates.email = email;
+    }
     if (avatar) updates.avatar = avatar;
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true, runValidators: true });
-    return successResponse(res, user, 'Profile updated');
-  } catch (error) { next(error); }
+    return successResponse(res, user, 'Profile updated successfully');
+  } catch (error) { 
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message).join(', ');
+      return errorResponse(res, `Update failed: ${messages}`, 400);
+    }
+    next(error); 
+  }
 };
 
 exports.forgotPassword = async (req, res, next) => {
@@ -153,13 +175,13 @@ exports.resetPassword = async (req, res, next) => {
     const { email, code, newPassword } = req.body;
     const user = await User.findOne({ email }).select('+password +passwordResetCode +passwordResetCodeExpires');
     if (!user || !user.passwordResetCode || user.passwordResetCode !== code) {
-      return errorResponse(res, 'Invalid or expired reset code', 400);
+      return errorResponse(res, 'Invalid reset code. Please check the code and try again', 400);
     }
     if (user.passwordResetCodeExpires < new Date()) {
       user.passwordResetCode = undefined;
       user.passwordResetCodeExpires = undefined;
       await user.save({ validateBeforeSave: false });
-      return errorResponse(res, 'Reset code has expired. Please request a new one.', 400);
+      return errorResponse(res, 'Reset code has expired. Please request a new code', 400);
     }
 
     user.password = newPassword;
@@ -168,7 +190,7 @@ exports.resetPassword = async (req, res, next) => {
     user.refreshToken = null;
     await user.save();
 
-    return successResponse(res, { message: 'Password reset successfully. You can now log in.' }, 'Password reset successfully');
+    return successResponse(res, { message: 'Password reset successfully. You can now log in with your new password' }, 'Password reset successfully');
   } catch (error) { next(error); }
 };
 
@@ -178,7 +200,7 @@ exports.changePassword = async (req, res, next) => {
     const user = await User.findById(req.user._id).select('+password');
 
     const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) return errorResponse(res, 'Current password is incorrect', 400);
+    if (!isMatch) return errorResponse(res, 'Current password is incorrect. Please try again', 400);
 
     user.password = newPassword;
     user.refreshToken = null;

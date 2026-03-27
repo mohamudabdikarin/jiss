@@ -26,6 +26,11 @@ const sectionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {}
   },
+  // Per-block translations: { blockId: { en: {...}, ar: {...}, ms: {...}, zh: {...} } }
+  blockTranslations: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
   order: {
     type: Number,
     required: true,

@@ -47,7 +47,7 @@ exports.getArticleBySlug = async (req, res, next) => {
       .populate('category', 'name slug')
       .populate('relatedArticles', 'title slug thumbnail type');
 
-    if (!article) return errorResponse(res, 'Article not found', 404);
+    if (!article) return errorResponse(res, 'Article not found or not published yet', 404);
     await article.incrementViews();
     return successResponse(res, article);
   } catch (error) { next(error); }
@@ -58,9 +58,14 @@ exports.getArticleById = async (req, res, next) => {
     const article = await Article.findById(req.params.id)
       .populate('category', 'name slug')
       .populate('createdBy', 'name email');
-    if (!article) return errorResponse(res, 'Article not found', 404);
+    if (!article) return errorResponse(res, 'Article not found. It may have been deleted', 404);
     return successResponse(res, article);
-  } catch (error) { next(error); }
+  } catch (error) { 
+    if (error.name === 'CastError') {
+      return errorResponse(res, 'Invalid article ID format', 400);
+    }
+    next(error); 
+  }
 };
 
 exports.createArticle = async (req, res, next) => {
@@ -71,25 +76,43 @@ exports.createArticle = async (req, res, next) => {
 
     // Parse authors if string
     if (typeof req.body.authors === 'string') {
-      req.body.authors = JSON.parse(req.body.authors);
+      try {
+        req.body.authors = JSON.parse(req.body.authors);
+      } catch {
+        return errorResponse(res, 'Invalid authors format. Please check the author data', 400);
+      }
     }
     if (typeof req.body.keywords === 'string') {
-      req.body.keywords = JSON.parse(req.body.keywords);
+      try {
+        req.body.keywords = JSON.parse(req.body.keywords);
+      } catch {
+        return errorResponse(res, 'Invalid keywords format', 400);
+      }
     }
 
     // Handle PDF upload
     if (req.file) {
-      const result = await uploadFile(req.file, 'articles/pdf');
-      req.body.pdfUrl = result.url;
-      req.body.pdfFileName = result.originalName;
-      req.body.pdfFileSize = result.size;
+      try {
+        const result = await uploadFile(req.file, 'articles/pdf');
+        req.body.pdfUrl = result.url;
+        req.body.pdfFileName = result.originalName;
+        req.body.pdfFileSize = result.size;
+      } catch (uploadError) {
+        return errorResponse(res, 'Failed to upload PDF file. Please try again', 500);
+      }
     }
 
     const article = await Article.create(req.body);
     auditService.log(req.user._id, 'create', 'Article', article._id, `Created: ${article.title}`, null, req);
     cacheService.invalidate('article');
-    return successResponse(res, article, 'Article created', 201);
-  } catch (error) { next(error); }
+    return successResponse(res, article, 'Article created successfully', 201);
+  } catch (error) { 
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message).join(', ');
+      return errorResponse(res, `Validation failed: ${messages}`, 400);
+    }
+    next(error); 
+  }
 };
 
 exports.updateArticle = async (req, res, next) => {
@@ -98,8 +121,20 @@ exports.updateArticle = async (req, res, next) => {
     delete req.body.updatedBy;
     req.body.updatedBy = req.user._id;
 
-    if (typeof req.body.authors === 'string') req.body.authors = JSON.parse(req.body.authors);
-    if (typeof req.body.keywords === 'string') req.body.keywords = JSON.parse(req.body.keywords);
+    if (typeof req.body.authors === 'string') {
+      try {
+        req.body.authors = JSON.parse(req.body.authors);
+      } catch {
+        return errorResponse(res, 'Invalid authors format. Please check the author data', 400);
+      }
+    }
+    if (typeof req.body.keywords === 'string') {
+      try {
+        req.body.keywords = JSON.parse(req.body.keywords);
+      } catch {
+        return errorResponse(res, 'Invalid keywords format', 400);
+      }
+    }
     if (typeof req.body.relatedArticles === 'string') {
       try {
         req.body.relatedArticles = JSON.parse(req.body.relatedArticles);
@@ -116,55 +151,82 @@ exports.updateArticle = async (req, res, next) => {
     }
 
     if (req.file) {
-      const result = await uploadFile(req.file, 'articles/pdf');
-      req.body.pdfUrl = result.url;
-      req.body.pdfFileName = result.originalName;
-      req.body.pdfFileSize = result.size;
+      try {
+        const result = await uploadFile(req.file, 'articles/pdf');
+        req.body.pdfUrl = result.url;
+        req.body.pdfFileName = result.originalName;
+        req.body.pdfFileSize = result.size;
+      } catch (uploadError) {
+        return errorResponse(res, 'Failed to upload PDF file. Please try again', 500);
+      }
     }
 
     const article = await Article.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
       .populate('category', 'name slug');
 
-    if (!article) return errorResponse(res, 'Article not found', 404);
+    if (!article) return errorResponse(res, 'Article not found. It may have been deleted', 404);
     auditService.log(req.user._id, 'update', 'Article', article._id, `Updated: ${article.title}`, null, req);
     cacheService.invalidate('article');
-    return successResponse(res, article, 'Article updated');
-  } catch (error) { next(error); }
+    return successResponse(res, article, 'Article updated successfully');
+  } catch (error) { 
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(e => e.message).join(', ');
+      return errorResponse(res, `Validation failed: ${messages}`, 400);
+    }
+    if (error.name === 'CastError') {
+      return errorResponse(res, 'Invalid article ID format', 400);
+    }
+    next(error); 
+  }
 };
 
 exports.deleteArticle = async (req, res, next) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
-    if (!article) return errorResponse(res, 'Article not found', 404);
+    if (!article) return errorResponse(res, 'Article not found. It may have already been deleted', 404);
     auditService.log(req.user._id, 'delete', 'Article', article._id, `Deleted: ${article.title}`, null, req);
     cacheService.invalidate('article');
-    return successResponse(res, null, 'Article deleted');
-  } catch (error) { next(error); }
+    return successResponse(res, null, 'Article deleted successfully');
+  } catch (error) { 
+    if (error.name === 'CastError') {
+      return errorResponse(res, 'Invalid article ID format', 400);
+    }
+    next(error); 
+  }
 };
 
 exports.bulkDeleteArticles = async (req, res, next) => {
   try {
     const { ids } = req.body;
-    await Article.deleteMany({ _id: { $in: ids } });
-    auditService.log(req.user._id, 'delete', 'Article', null, `Bulk deleted ${ids.length} articles`, null, req);
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return errorResponse(res, 'Please select at least one article to delete', 400);
+    }
+    const result = await Article.deleteMany({ _id: { $in: ids } });
+    auditService.log(req.user._id, 'delete', 'Article', null, `Bulk deleted ${result.deletedCount} articles`, null, req);
     cacheService.invalidate('article');
-    return successResponse(res, null, `${ids.length} articles deleted`);
+    return successResponse(res, null, `${result.deletedCount} article${result.deletedCount !== 1 ? 's' : ''} deleted successfully`);
   } catch (error) { next(error); }
 };
 
 exports.bulkUpdateStatus = async (req, res, next) => {
   try {
     const { ids, status } = req.body;
-    await Article.updateMany({ _id: { $in: ids } }, { status });
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return errorResponse(res, 'Please select at least one article to update', 400);
+    }
+    if (!['draft', 'published', 'archived'].includes(status)) {
+      return errorResponse(res, 'Invalid status. Must be draft, published, or archived', 400);
+    }
+    const result = await Article.updateMany({ _id: { $in: ids } }, { status });
     cacheService.invalidate('article');
-    return successResponse(res, null, `${ids.length} articles updated to ${status}`);
+    return successResponse(res, null, `${result.modifiedCount} article${result.modifiedCount !== 1 ? 's' : ''} updated to ${status}`);
   } catch (error) { next(error); }
 };
 
 exports.duplicateArticle = async (req, res, next) => {
   try {
     const original = await Article.findById(req.params.id).lean();
-    if (!original) return errorResponse(res, 'Article not found', 404);
+    if (!original) return errorResponse(res, 'Article not found. Cannot duplicate', 404);
 
     delete original._id;
     original.title = `${original.title} (Copy)`;
@@ -180,8 +242,13 @@ exports.duplicateArticle = async (req, res, next) => {
     const newArticle = await Article.create(original);
     auditService.log(req.user._id, 'create', 'Article', newArticle._id, `Duplicated: ${original.title}`, null, req);
     cacheService.invalidate('article');
-    return successResponse(res, newArticle, 'Article duplicated', 201);
-  } catch (error) { next(error); }
+    return successResponse(res, newArticle, 'Article duplicated successfully', 201);
+  } catch (error) { 
+    if (error.name === 'CastError') {
+      return errorResponse(res, 'Invalid article ID format', 400);
+    }
+    next(error); 
+  }
 };
 
 exports.searchArticles = async (req, res, next) => {
@@ -220,8 +287,13 @@ exports.trackDownload = async (req, res, next) => {
     const article = await Article.findById(req.params.id);
     if (!article) return errorResponse(res, 'Article not found', 404);
     await article.incrementDownloads();
-    return successResponse(res, { downloads: article.downloads + 1 }, 'Download tracked');
-  } catch (error) { next(error); }
+    return successResponse(res, { downloads: article.downloads + 1 }, 'Download tracked successfully');
+  } catch (error) { 
+    if (error.name === 'CastError') {
+      return errorResponse(res, 'Invalid article ID format', 400);
+    }
+    next(error); 
+  }
 };
 
 exports.getFeaturedArticles = async (req, res, next) => {

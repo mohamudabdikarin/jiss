@@ -1,34 +1,30 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import ReactQuill from 'react-quill';
-import 'react-quill/dist/quill.snow.css';
+import toast from 'react-hot-toast';
+import LanguageTabs from './LanguageTabs';
+import RichTextEditor from './RichTextEditor';
 
 /**
- * Quill editor with local state. Prevents cursor-reset / lost-space bug that
- * occurs when ReactQuill is fully controlled and the parent re-renders on every
- * keystroke. The `html` prop is only read on mount; after that the component
- * drives Quill from its own state and only notifies the parent via onChange.
- * Use `key={block.id}` on the parent so this remounts if the block is replaced.
+ * Rich text editor with local state to prevent cursor issues.
  */
-function QuillBlockField({ html, onChange, modules, formats, placeholder }) {
+function RichTextField({ html, onChange, placeholder }) {
   const [localHtml, setLocalHtml] = useState(html ?? '');
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  
   const handleChange = useCallback((v) => {
     setLocalHtml(v);
     onChangeRef.current(v);
   }, []);
+  
   return (
-    <ReactQuill
-      theme="snow"
+    <RichTextEditor
       value={localHtml}
       onChange={handleChange}
-      modules={modules}
-      formats={formats}
       placeholder={placeholder}
     />
   );
 }
-import { sectionsAPI } from '../../../api';
+import { sectionsAPI, mediaAPI } from '../../../api';
 import {
   FiMenu,
   FiTrash2,
@@ -37,7 +33,8 @@ import {
   FiArrowDown,
   FiPlus,
   FiChevronDown,
-  FiMoreVertical
+  FiMoreVertical,
+  FiUpload
 } from 'react-icons/fi';
 import './PageBlockEditor.css';
 
@@ -56,25 +53,6 @@ function buildAutosaveFingerprint(blocks, appear) {
     }
   });
 }
-
-const SNOW_MODULES = {
-  toolbar: [
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ color: [] }, { background: [] }],
-    ['link'],
-    [{ list: 'ordered' }, { list: 'bullet' }],
-    [{ align: [] }],
-    ['clean']
-  ]
-};
-
-const SNOW_FORMATS = [
-  'bold', 'italic', 'underline', 'strike',
-  'color', 'background',
-  'link',
-  'list', 'bullet',
-  'align'
-];
 
 const ADD_OPTIONS = [
   { type: 'heading', label: 'Heading', hint: 'Large title — type in the box' },
@@ -162,9 +140,48 @@ function shapeBoxStyle(block) {
 function migrateBlockFromServer(b) {
   if (!b || typeof b !== 'object') return b;
   const x = { ...b };
+  
+  // Migrate old heading format
   if (x.type === 'heading' && (x.text == null || String(x.text).trim() === '') && x.html) {
     x.text = String(x.html).replace(/<[^>]*>/g, '').trim();
   }
+  
+  // Initialize i18n structure if it doesn't exist, preserving existing content as English
+  if (!x.i18n) {
+    x.i18n = {};
+    
+    // Migrate text-based fields to i18n structure
+    if (x.type === 'heading' && x.text) {
+      x.i18n.text = { en: x.text };
+    }
+    if ((x.type === 'paragraph' || x.type === 'quote' || x.type === 'list' || x.type === 'shape') && x.html) {
+      x.i18n.html = { en: x.html };
+    }
+    if (x.type === 'button' && x.label) {
+      x.i18n.label = { en: x.label };
+    }
+    if (x.type === 'columns') {
+      if (x.col1Html) x.i18n.col1Html = { en: x.col1Html };
+      if (x.col2Html) x.i18n.col2Html = { en: x.col2Html };
+    }
+    if (x.type === 'card') {
+      if (x.title) x.i18n.title = { en: x.title };
+      if (x.bodyHtml) x.i18n.bodyHtml = { en: x.bodyHtml };
+    }
+    if (x.type === 'profile_heading') {
+      if (x.title) x.i18n.title = { en: x.title };
+      if (x.subtitle) x.i18n.subtitle = { en: x.subtitle };
+    }
+    if (x.type === 'tag_pills' && x.heading) {
+      x.i18n.heading = { en: x.heading };
+    }
+    if (x.type === 'apc_callout') {
+      if (x.label) x.i18n.label = { en: x.label };
+      if (x.amount) x.i18n.amount = { en: x.amount };
+      if (x.note) x.i18n.note = { en: x.note };
+    }
+  }
+  
   return x;
 }
 
@@ -172,29 +189,29 @@ function createBlock(type) {
   const id = newBlockId();
   switch (type) {
     case 'heading':
-      return { id, type: 'heading', level: 'h2', text: '', align: 'left' };
+      return { id, type: 'heading', level: 'h2', text: '', align: 'left', i18n: { text: { en: '' } } };
     case 'paragraph':
-      return { id, type: 'paragraph', html: '<p><br></p>' };
+      return { id, type: 'paragraph', html: '<p><br></p>', i18n: { html: { en: '<p><br></p>' } } };
     case 'image':
       return { id, type: 'image', src: '', alt: '', width: '100%' };
     case 'list':
-      return { id, type: 'list', ordered: false, html: '<ul><li><br></li></ul>' };
+      return { id, type: 'list', ordered: false, html: '<ul><li><br></li></ul>', i18n: { html: { en: '<ul><li><br></li></ul>' } } };
     case 'quote':
-      return { id, type: 'quote', html: '<p><br></p>' };
+      return { id, type: 'quote', html: '<p><br></p>', i18n: { html: { en: '<p><br></p>' } } };
     case 'button':
-      return { id, type: 'button', label: 'Learn more', url: 'home', variant: 'primary', newTab: false };
+      return { id, type: 'button', label: 'Learn more', url: 'home', variant: 'primary', newTab: false, i18n: { label: { en: 'Learn more' } } };
     case 'divider':
       return { id, type: 'divider' };
     case 'columns':
-      return { id, type: 'columns', col1Html: '<p><br></p>', col2Html: '<p><br></p>' };
+      return { id, type: 'columns', col1Html: '<p><br></p>', col2Html: '<p><br></p>', i18n: { col1Html: { en: '<p><br></p>' }, col2Html: { en: '<p><br></p>' } } };
     case 'spacer':
       return { id, type: 'spacer', height: '32px' };
     case 'video':
       return { id, type: 'video', url: '' };
     case 'card':
-      return { id, type: 'card', imageSrc: '', title: '', bodyHtml: '<p><br></p>' };
+      return { id, type: 'card', imageSrc: '', title: '', bodyHtml: '<p><br></p>', i18n: { title: { en: '' }, bodyHtml: { en: '<p><br></p>' } } };
     case 'profile_heading':
-      return { id, type: 'profile_heading', title: '', subtitle: '', accentColor: '#c8102e' };
+      return { id, type: 'profile_heading', title: '', subtitle: '', accentColor: '#c8102e', i18n: { title: { en: '' }, subtitle: { en: '' } } };
     case 'tag_pills':
       return {
         id,
@@ -205,7 +222,8 @@ function createBlock(type) {
           { label: 'Scopus', url: '' },
           { label: 'Google Scholar', url: '' },
           { label: '', url: '' }
-        ]
+        ],
+        i18n: { heading: { en: '' } }
       };
     case 'apc_callout':
       return {
@@ -213,7 +231,12 @@ function createBlock(type) {
         type: 'apc_callout',
         label: 'Article Processing Charge (APC)',
         amount: '265 USD',
-        note: 'For all accepted manuscripts (effective from July 1, 2023)'
+        note: 'For all accepted manuscripts (effective from July 1, 2023)',
+        i18n: {
+          label: { en: 'Article Processing Charge (APC)' },
+          amount: { en: '265 USD' },
+          note: { en: 'For all accepted manuscripts (effective from July 1, 2023)' }
+        }
       };
     case 'shape':
       return {
@@ -221,13 +244,15 @@ function createBlock(type) {
         type: 'shape',
         html: '<p><br></p>',
         backgroundColor: '#f0f7ff',
+        textColor: '#000000',
         borderColor: '#b8d4eb',
         borderWidth: '1px',
         borderRadius: '8px',
-        padding: '24px'
+        padding: '24px',
+        i18n: { html: { en: '<p><br></p>' } }
       };
     default:
-      return { id, type: 'paragraph', html: '<p><br></p>' };
+      return { id, type: 'paragraph', html: '<p><br></p>', i18n: { html: { en: '<p><br></p>' } } };
   }
 }
 
@@ -243,48 +268,14 @@ function BlockRow({
   onDup,
   onDel,
   onUp,
-  onDown,
-  isInsertAnchor,
-  onSelectInsertAfter
+  onDown
 }) {
-  const isQuillActive = () => {
-    const ae = typeof document !== 'undefined' ? document.activeElement : null;
-    if (!ae || !(ae instanceof Element)) return false;
-    return Boolean(
-      ae.closest('.ql-editor, .ql-container, [contenteditable="true"]') ||
-      ae.classList.contains('ql-editor')
-    );
-  };
-
-  const onRowClick = (e) => {
-    if (!onSelectInsertAfter) return;
-    const target = e.target;
-    if (target instanceof Element && target.closest('button, input, textarea, select, .ql-editor, [contenteditable="true"], a, summary')) return;
-    onSelectInsertAfter(index);
-  };
-
   return (
     <div
-      className={`pb-block${dragging ? ' pb-block--dragging' : ''}${isInsertAnchor ? ' pb-block--insert-anchor' : ''}`}
-      onClick={onRowClick}
+      className={`pb-block${dragging ? ' pb-block--dragging' : ''}`}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, index)}
       onDragEnd={onDragEnd}
-      role={onSelectInsertAfter ? 'button' : undefined}
-      tabIndex={onSelectInsertAfter ? 0 : undefined}
-      onKeyDown={
-        onSelectInsertAfter
-          ? (e) => {
-              if (isQuillActive()) return;
-              const target = e.target;
-              if (target instanceof Element && target.closest('button, input, textarea, select, .ql-editor, [contenteditable="true"], a, summary')) return;
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onSelectInsertAfter(index);
-              }
-            }
-          : undefined
-      }
     >
       <button
         type="button"
@@ -312,8 +303,36 @@ function BlockRow({
   );
 }
 
-function renderBlockFields(block, index, updateBlockField) {
+function renderBlockFields(block, index, updateBlockField, uploading, setUploading) {
   const setField = (key, value) => updateBlockField(index, key, value);
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await mediaAPI.upload(formData);
+      const uploadedUrl = data?.data?.url || data?.url;
+      if (uploadedUrl) {
+        setField('src', uploadedUrl);
+        toast.success('Image uploaded');
+      } else {
+        toast.error('Upload failed - no URL returned');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   switch (block.type) {
     case 'heading':
@@ -331,27 +350,35 @@ function renderBlockFields(block, index, updateBlockField) {
               <option value="right">Right</option>
             </select>
           </div>
-          <input
-            className="form-input"
-            style={{ fontSize: '1.2rem', fontWeight: 700 }}
-            value={block.text ?? ''}
-            onChange={(e) => setField('text', e.target.value)}
-            placeholder="Type the heading"
+          <LanguageTabs
+            value={block.i18n?.text || { en: block.text || '' }}
+            onChange={(i18nText) => setField('i18n', { ...(block.i18n || {}), text: i18nText })}
+            renderField={(val, onChange, lang) => (
+              <input
+                className="form-input"
+                style={{ fontSize: '1.2rem', fontWeight: 700 }}
+                value={val}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="Type the heading"
+              />
+            )}
           />
         </>
       );
     case 'paragraph':
     case 'quote':
       return (
-        <div className="pb-quill">
-          <QuillBlockField
-            html={block.html || ''}
-            onChange={(html) => setField('html', html)}
-            modules={SNOW_MODULES}
-            formats={SNOW_FORMATS}
-            placeholder={block.type === 'quote' ? 'Quote text…' : 'Type here — formatting bar is above'}
-          />
-        </div>
+        <LanguageTabs
+          value={block.i18n?.html || { en: block.html || '' }}
+          onChange={(i18nHtml) => setField('i18n', { ...(block.i18n || {}), html: i18nHtml })}
+          renderField={(val, onChange, lang) => (
+            <RichTextField
+              html={val}
+              onChange={onChange}
+              placeholder={block.type === 'quote' ? 'Quote text…' : 'Type here — use toolbar above for formatting'}
+            />
+          )}
+        />
       );
     case 'list':
       return (
@@ -363,15 +390,17 @@ function renderBlockFields(block, index, updateBlockField) {
               <option value="ol">Numbered</option>
             </select>
           </div>
-          <div className="pb-quill">
-            <QuillBlockField
-              html={block.html || ''}
-              onChange={(html) => setField('html', html)}
-              modules={SNOW_MODULES}
-              formats={SNOW_FORMATS}
-              placeholder="Use the list buttons in the toolbar above"
-            />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.html || { en: block.html || '' }}
+            onChange={(i18nHtml) => setField('i18n', { ...(block.i18n || {}), html: i18nHtml })}
+            renderField={(val, onChange, lang) => (
+              <RichTextField
+                html={val}
+                onChange={onChange}
+                placeholder="Use the list buttons in the toolbar above"
+              />
+            )}
+          />
         </>
       );
     case 'image':
@@ -379,12 +408,36 @@ function renderBlockFields(block, index, updateBlockField) {
         <>
           <div className="form-group">
             <label className="form-label">Image URL</label>
-            <input className="form-input" value={block.src || ''} onChange={(e) => setField('src', e.target.value)} placeholder="https://…" />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <input 
+                className="form-input" 
+                style={{ flex: 1 }}
+                value={block.src || ''} 
+                onChange={(e) => setField('src', e.target.value)} 
+                placeholder="https://… or upload below" 
+              />
+              <label className="btn btn-outline btn-sm" style={{ cursor: 'pointer', margin: 0 }}>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageUpload}
+                  disabled={uploading}
+                  style={{ display: 'none' }}
+                />
+                <FiUpload style={{ marginRight: 6 }} />
+                {uploading ? 'Uploading...' : 'Upload'}
+              </label>
+            </div>
           </div>
+          {block.src && (
+            <div style={{ marginBottom: 12, padding: 8, border: '1px solid var(--card-border)', borderRadius: 8, background: 'var(--surface-muted)' }}>
+              <img src={block.src} alt={block.alt || 'Preview'} style={{ maxWidth: '100%', maxHeight: 200, display: 'block', borderRadius: 4 }} />
+            </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Alt text</label>
-              <input className="form-input" value={block.alt || ''} onChange={(e) => setField('alt', e.target.value)} />
+              <input className="form-input" value={block.alt || ''} onChange={(e) => setField('alt', e.target.value)} placeholder="Describe the image" />
             </div>
             <div className="form-group">
               <label className="form-label">Max width</label>
@@ -396,15 +449,23 @@ function renderBlockFields(block, index, updateBlockField) {
     case 'button':
       return (
         <>
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Label</label>
-              <input className="form-input" value={block.label || ''} onChange={(e) => setField('label', e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">URL / slug</label>
-              <input className="form-input" value={block.url || ''} onChange={(e) => setField('url', e.target.value)} placeholder="home or https://…" />
-            </div>
+          <LanguageTabs
+            value={block.i18n?.label || { en: block.label || '' }}
+            onChange={(i18nLabel) => setField('i18n', { ...(block.i18n || {}), label: i18nLabel })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Label</label>
+                <input 
+                  className="form-input" 
+                  value={val} 
+                  onChange={(e) => onChange(e.target.value)}
+                />
+              </div>
+            )}
+          />
+          <div className="form-group">
+            <label className="form-label">URL / slug</label>
+            <input className="form-input" value={block.url || ''} onChange={(e) => setField('url', e.target.value)} placeholder="home or https://…" />
           </div>
           <div className="form-row">
             <div className="form-group">
@@ -432,25 +493,31 @@ function renderBlockFields(block, index, updateBlockField) {
         <div className="pb-columns-row">
           <div>
             <div className="pb-meta-label">Column 1</div>
-            <div className="pb-quill">
-              <QuillBlockField
-                html={block.col1Html || ''}
-                onChange={(html) => setField('col1Html', html)}
-                modules={SNOW_MODULES}
-                formats={SNOW_FORMATS}
-              />
-            </div>
+            <LanguageTabs
+              value={block.i18n?.col1Html || { en: block.col1Html || '' }}
+              onChange={(i18nCol1) => setField('i18n', { ...(block.i18n || {}), col1Html: i18nCol1 })}
+              renderField={(val, onChange, lang) => (
+                <RichTextField
+                  html={val}
+                  onChange={onChange}
+                  placeholder="Column 1 content"
+                />
+              )}
+            />
           </div>
           <div>
             <div className="pb-meta-label">Column 2</div>
-            <div className="pb-quill">
-              <QuillBlockField
-                html={block.col2Html || ''}
-                onChange={(html) => setField('col2Html', html)}
-                modules={SNOW_MODULES}
-                formats={SNOW_FORMATS}
-              />
-            </div>
+            <LanguageTabs
+              value={block.i18n?.col2Html || { en: block.col2Html || '' }}
+              onChange={(i18nCol2) => setField('i18n', { ...(block.i18n || {}), col2Html: i18nCol2 })}
+              renderField={(val, onChange, lang) => (
+                <RichTextField
+                  html={val}
+                  onChange={onChange}
+                  placeholder="Column 2 content"
+                />
+              )}
+            />
           </div>
         </div>
       );
@@ -475,44 +542,69 @@ function renderBlockFields(block, index, updateBlockField) {
             <label className="form-label">Image URL</label>
             <input className="form-input" value={block.imageSrc || ''} onChange={(e) => setField('imageSrc', e.target.value)} />
           </div>
-          <div className="form-group">
-            <label className="form-label">Title</label>
-            <input className="form-input" value={block.title || ''} onChange={(e) => setField('title', e.target.value)} />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.title || { en: block.title || '' }}
+            onChange={(i18nTitle) => setField('i18n', { ...(block.i18n || {}), title: i18nTitle })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Title</label>
+                <input 
+                  className="form-input" 
+                  value={val} 
+                  onChange={(e) => onChange(e.target.value)}
+                />
+              </div>
+            )}
+          />
           <div className="pb-meta-label">Body</div>
-          <div className="pb-quill">
-            <QuillBlockField
-              html={block.bodyHtml || ''}
-              onChange={(html) => setField('bodyHtml', html)}
-              modules={SNOW_MODULES}
-              formats={SNOW_FORMATS}
-            />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.bodyHtml || { en: block.bodyHtml || '' }}
+            onChange={(i18nBody) => setField('i18n', { ...(block.i18n || {}), bodyHtml: i18nBody })}
+            renderField={(val, onChange, lang) => (
+              <RichTextField
+                html={val}
+                onChange={onChange}
+                placeholder="Card body text"
+              />
+            )}
+          />
         </>
       );
     case 'profile_heading':
       return (
         <>
-          <div className="form-group">
-            <label className="form-label">Role / title</label>
-            <input
-              className="form-input"
-              value={block.title || ''}
-              onChange={(e) => setField('title', e.target.value)}
-              placeholder="e.g. Editor-in-Chief"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Names &amp; affiliations</label>
-            <textarea
-              className="form-textarea"
-              rows={6}
-              value={block.subtitle || ''}
-              onChange={(e) => setField('subtitle', e.target.value)}
-              placeholder={'One or more lines, e.g.\nMazen Ali, University of Bahrain, Bahrain\nJane Doe, MIT, USA'}
-            />
-            <p className="form-helper">Use line breaks for extra people, institutions, or paragraphs.</p>
-          </div>
+          <LanguageTabs
+            value={block.i18n?.title || { en: block.title || '' }}
+            onChange={(i18nTitle) => setField('i18n', { ...(block.i18n || {}), title: i18nTitle })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Role / title</label>
+                <input
+                  className="form-input"
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="e.g. Editor-in-Chief"
+                />
+              </div>
+            )}
+          />
+          <LanguageTabs
+            value={block.i18n?.subtitle || { en: block.subtitle || '' }}
+            onChange={(i18nSubtitle) => setField('i18n', { ...(block.i18n || {}), subtitle: i18nSubtitle })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Names &amp; affiliations</label>
+                <textarea
+                  className="form-textarea"
+                  rows={6}
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder={'One or more lines, e.g.\nMazen Ali, University of Bahrain, Bahrain\nJane Doe, MIT, USA'}
+                />
+                <p className="form-helper">Use line breaks for extra people, institutions, or paragraphs.</p>
+              </div>
+            )}
+          />
           <div className="form-group">
             <label className="form-label">Accent bar color</label>
             <input
@@ -532,9 +624,9 @@ function renderBlockFields(block, index, updateBlockField) {
                   style={{ backgroundColor: block.accentColor || '#c8102e' }}
                   aria-hidden
                 />
-                <h3 className="pb-profile-heading__title">{block.title || 'Role title'}</h3>
+                <h3 className="pb-profile-heading__title">{(block.i18n?.title?.en || block.title) || 'Role title'}</h3>
               </div>
-              {block.subtitle ? <p className="pb-profile-heading__subtitle">{block.subtitle}</p> : null}
+              {(block.i18n?.subtitle?.en || block.subtitle) ? <p className="pb-profile-heading__subtitle">{block.i18n?.subtitle?.en || block.subtitle}</p> : null}
             </div>
           </div>
         </>
@@ -558,15 +650,21 @@ function renderBlockFields(block, index, updateBlockField) {
       const align = block.align === 'left' || block.align === 'right' ? block.align : 'center';
       return (
         <>
-          <div className="form-group">
-            <label className="form-label">Optional title above pills</label>
-            <input
-              className="form-input"
-              value={block.heading || ''}
-              onChange={(e) => updateBlockField(index, 'heading', e.target.value)}
-              placeholder="e.g. Indexed in"
-            />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.heading || { en: block.heading || '' }}
+            onChange={(i18nHeading) => setField('i18n', { ...(block.i18n || {}), heading: i18nHeading })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Optional title above pills</label>
+                <input
+                  className="form-input"
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="e.g. Indexed in"
+                />
+              </div>
+            )}
+          />
           <div className="form-group">
             <label className="form-label">Alignment</label>
             <select
@@ -625,7 +723,7 @@ function renderBlockFields(block, index, updateBlockField) {
           </button>
           <div className="pb-tag-pills-preview-wrap">
             <div className="pb-meta-label" style={{ marginBottom: 8 }}>Preview</div>
-            {block.heading ? <div className="pb-tag-pills-preview-title">{block.heading}</div> : null}
+            {(block.i18n?.heading?.en || block.heading) ? <div className="pb-tag-pills-preview-title">{block.i18n?.heading?.en || block.heading}</div> : null}
             <div className={`section-tag-badges section-tag-badges--${align} pb-tag-pills-preview-inner`}>
               {(visible.length ? visible : [{ label: 'Preview tag', url: '' }]).map((b, i) => (
                 <span key={i} className="section-tag-badges__item">
@@ -640,47 +738,69 @@ function renderBlockFields(block, index, updateBlockField) {
     case 'apc_callout':
       return (
         <>
-          <div className="form-group">
-            <label className="form-label">Top line (label)</label>
-            <input
-              className="form-input"
-              value={block.label || ''}
-              onChange={(e) => updateBlockField(index, 'label', e.target.value)}
-              placeholder="Article Processing Charge (APC)"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Amount / headline</label>
-            <input
-              className="form-input"
-              style={{ fontSize: '1.15rem', fontWeight: 700 }}
-              value={block.amount || ''}
-              onChange={(e) => updateBlockField(index, 'amount', e.target.value)}
-              placeholder="265 USD"
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Note (small text below)</label>
-            <textarea
-              className="form-textarea"
-              rows={3}
-              value={block.note || ''}
-              onChange={(e) => updateBlockField(index, 'note', e.target.value)}
-              placeholder="For all accepted manuscripts…"
-            />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.label || { en: block.label || '' }}
+            onChange={(i18nLabel) => setField('i18n', { ...(block.i18n || {}), label: i18nLabel })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Top line (label)</label>
+                <input
+                  className="form-input"
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="Article Processing Charge (APC)"
+                />
+              </div>
+            )}
+          />
+          <LanguageTabs
+            value={block.i18n?.amount || { en: block.amount || '' }}
+            onChange={(i18nAmount) => setField('i18n', { ...(block.i18n || {}), amount: i18nAmount })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Amount / headline</label>
+                <input
+                  className="form-input"
+                  style={{ fontSize: '1.15rem', fontWeight: 700 }}
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="265 USD"
+                />
+              </div>
+            )}
+          />
+          <LanguageTabs
+            value={block.i18n?.note || { en: block.note || '' }}
+            onChange={(i18nNote) => setField('i18n', { ...(block.i18n || {}), note: i18nNote })}
+            renderField={(val, onChange, lang) => (
+              <div className="form-group">
+                <label className="form-label">Note (small text below)</label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  value={val}
+                  onChange={(e) => onChange(e.target.value)}
+                  placeholder="For all accepted manuscripts…"
+                />
+              </div>
+            )}
+          />
           <div className="pb-apc-callout-preview-wrap">
             <div className="pb-meta-label" style={{ marginBottom: 8 }}>Preview</div>
             <div className="pb-apc-callout pb-apc-callout--preview">
-              {block.label ? <div className="pb-apc-callout__label">{block.label}</div> : null}
-              {block.amount ? <div className="pb-apc-callout__amount">{block.amount}</div> : null}
-              {block.note ? <div className="pb-apc-callout__note">{block.note}</div> : null}
+              {(block.i18n?.label?.en || block.label) ? <div className="pb-apc-callout__label">{block.i18n?.label?.en || block.label}</div> : null}
+              {(block.i18n?.amount?.en || block.amount) ? <div className="pb-apc-callout__amount">{block.i18n?.amount?.en || block.amount}</div> : null}
+              {(block.i18n?.note?.en || block.note) ? <div className="pb-apc-callout__note">{block.i18n?.note?.en || block.note}</div> : null}
             </div>
           </div>
         </>
       );
     case 'shape': {
       const boxStyle = shapeBoxStyle(block);
+      const previewStyle = {
+        ...boxStyle,
+        color: block.textColor || '#000000'
+      };
       return (
         <>
           <div className="form-row" style={{ flexWrap: 'wrap', gap: 12 }}>
@@ -703,6 +823,27 @@ function renderBlockFields(block, index, updateBlockField) {
                 />
               </div>
             </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Text color</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="color"
+                  value={/^#[0-9A-Fa-f]{6}$/.test(String(block.textColor || '').trim()) ? block.textColor.trim() : '#000000'}
+                  onChange={(e) => setField('textColor', e.target.value)}
+                  style={{ width: 44, height: 36, padding: 2, cursor: 'pointer', border: '1px solid var(--card-border)', borderRadius: 6 }}
+                  aria-label="Text color"
+                />
+                <input
+                  className="form-input"
+                  style={{ flex: 1, minWidth: 100 }}
+                  value={block.textColor || ''}
+                  onChange={(e) => setField('textColor', e.target.value)}
+                  placeholder="#000000"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="form-row" style={{ flexWrap: 'wrap', gap: 12 }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Border color</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -755,21 +896,23 @@ function renderBlockFields(block, index, updateBlockField) {
           <p className="form-helper" style={{ marginTop: 0, marginBottom: 10 }}>
             Use the editor below for contact lines, bold labels, links, and colors. Numbers without a unit become px.
           </p>
-          <div className="pb-quill">
-            <QuillBlockField
-              html={block.html || ''}
-              onChange={(html) => setField('html', html)}
-              modules={SNOW_MODULES}
-              formats={SNOW_FORMATS}
-              placeholder="Type inside the shape — name, title, address, links…"
-            />
-          </div>
+          <LanguageTabs
+            value={block.i18n?.html || { en: block.html || '' }}
+            onChange={(i18nHtml) => setField('i18n', { ...(block.i18n || {}), html: i18nHtml })}
+            renderField={(val, onChange, lang) => (
+              <RichTextField
+                html={val}
+                onChange={onChange}
+                placeholder="Type inside the shape — name, title, address, links…"
+              />
+            )}
+          />
           <div className="pb-shape-preview-wrap">
             <div className="pb-meta-label" style={{ marginBottom: 8 }}>Preview</div>
-            <div className="pb-shape pb-shape--editor-preview" style={boxStyle}>
+            <div className="pb-shape pb-shape--editor-preview" style={previewStyle}>
               <div
                 className="pb-paragraph"
-                dangerouslySetInnerHTML={{ __html: block.html || '' }}
+                dangerouslySetInnerHTML={{ __html: (block.i18n?.html?.en || block.html) || '' }}
               />
             </div>
           </div>
@@ -819,15 +962,11 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
     cssClasses: ''
   });
   const [addMenu, setAddMenu] = useState({ open: false, wrapId: null });
-  /** null = append at end; -1 = before first block; n = after blocks[n] */
-  const [blockInsertAfterIndex, setBlockInsertAfterIndex] = useState(null);
   const [dragFrom, setDragFrom] = useState(null);
-  const activeInsertRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
   const blocksRef = useRef(blocks);
   const appearRef = useRef(appear);
   const sectionRef = useRef(section);
-  const blockInsertAfterRef = useRef(null);
-  blockInsertAfterRef.current = blockInsertAfterIndex;
 
   const lastSavedFingerprintRef = useRef('');
   const autoSaveTimerRef = useRef(null);
@@ -865,20 +1004,13 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
     hydratedRef.current = true;
 
     if (switchedSection) {
-      setBlockInsertAfterIndex(null);
       setAddMenu({ open: false, wrapId: null });
     }
   }, [section]);
 
   const closeAddMenu = useCallback(() => setAddMenu({ open: false, wrapId: null }), []);
 
-  const selectInsertAnchor = useCallback((idx) => {
-    setAddMenu({ open: false, wrapId: null });
-    setBlockInsertAfterIndex(idx);
-  }, []);
-
   const toggleAddMenu = useCallback((wrapId, anchorIndex) => {
-    setBlockInsertAfterIndex(anchorIndex);
     setAddMenu((m) => (m.open && m.wrapId === wrapId ? { open: false, wrapId: null } : { open: true, wrapId }));
   }, []);
 
@@ -901,41 +1033,28 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
     return () => document.removeEventListener('keydown', onKey);
   }, [addMenu.open, closeAddMenu]);
 
-  useEffect(() => {
-    if (blockInsertAfterIndex === null) return;
-    const id = requestAnimationFrame(() => {
-      activeInsertRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    });
-    return () => cancelAnimationFrame(id);
-  }, [blockInsertAfterIndex]);
-
   const updateBlockField = (idx, key, value) => {
     setBlocks((prev) => prev.map((b, i) => (i === idx ? { ...b, [key]: value } : b)));
   };
 
   const addBlock = (type) => {
     const block = createBlock(type);
-    const anchor = blockInsertAfterRef.current;
-    setBlocks((prev) => {
-      if (anchor === null) return [...prev, block];
-      const at = anchor < 0 ? 0 : Math.min(anchor + 1, prev.length);
-      const next = [...prev];
-      next.splice(at, 0, block);
-      return next;
-    });
+    setBlocks((prev) => [...prev, block]);
     closeAddMenu();
-    setBlockInsertAfterIndex(null);
   };
 
   const removeBlock = (idx) => {
     setBlocks((prev) => prev.filter((_, i) => i !== idx));
-    setBlockInsertAfterIndex((cur) => {
-      if (cur === null) return null;
-      if (cur === idx) return null;
-      if (cur > idx) return cur - 1;
-      return cur;
-    });
   };
+
+  useEffect(() => {
+    if (!addMenu.open) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape') closeAddMenu();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [addMenu.open, closeAddMenu]);
 
   const dupBlock = (idx) => {
     setBlocks((prev) => {
@@ -1038,18 +1157,13 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
       <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 className="card-title" style={{ margin: 0 }}>Your page</h3>
-          <p className="pb-editor-intro" style={{ margin: '6px 0 0' }}>
-            Click a block to select it — the <strong>Add block</strong> control appears <strong>right there</strong>. Format with the toolbar above the text, drag ⋮⋮ to reorder. Blocks <strong>save automatically</strong> in the background (~{Math.round(AUTO_SAVE_DELAY_MS / 1000)}s after you stop editing); use <strong>Save</strong> at the top for title, slug, and other page fields.
-          </p>
+          
         </div>
       </div>
 
       <div style={{ padding: '16px 20px 24px' }}>
         {blocks.length === 0 ? (
-          <div
-            ref={activeInsertRef}
-            className="pb-empty-add-shell"
-          >
+          <div className="pb-empty-add-shell">
             <p className="pb-empty-add-title">No blocks yet</p>
             <AddBlockSlot
               wrapId="empty"
@@ -1063,19 +1177,6 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
           </div>
         ) : (
           <div className="pb-block-list">
-            {blockInsertAfterIndex === -1 ? (
-              <div ref={activeInsertRef} className="pb-inline-add-row">
-                <span className="pb-inline-add-label">Insert at top</span>
-                <AddBlockSlot
-                  wrapId="prepend"
-                  anchorIndex={-1}
-                  addMenu={addMenu}
-                  onToggle={toggleAddMenu}
-                  onPickType={addBlock}
-                  label="Add block here"
-                />
-              </div>
-            ) : null}
             {blocks.map((block, index) => (
               <div key={block.id || index} className="pb-block-stack">
                 <BlockRow
@@ -1090,40 +1191,23 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
                   onDel={removeBlock}
                   onUp={(i) => moveBlock(i, -1)}
                   onDown={(i) => moveBlock(i, 1)}
-                  isInsertAnchor={blockInsertAfterIndex === index}
-                  onSelectInsertAfter={selectInsertAnchor}
                 >
                   <div className="pb-meta-label">{ADD_OPTIONS.find((o) => o.type === block.type)?.label || block.type}</div>
-                  {renderBlockFields(block, index, updateBlockField)}
+                  {renderBlockFields(block, index, updateBlockField, uploading, setUploading)}
                 </BlockRow>
-                {blockInsertAfterIndex === index ? (
-                  <div ref={activeInsertRef} className="pb-inline-add-row pb-inline-add-row--after">
-                    <span className="pb-inline-add-label">After this block</span>
-                    <AddBlockSlot
-                      wrapId={`after-${index}`}
-                      anchorIndex={index}
-                      addMenu={addMenu}
-                      onToggle={toggleAddMenu}
-                      onPickType={addBlock}
-                      label="Add block here"
-                    />
-                  </div>
-                ) : null}
               </div>
             ))}
-            {blockInsertAfterIndex === null ? (
-              <div ref={activeInsertRef} className="pb-inline-add-row pb-inline-add-row--append">
-                <span className="pb-inline-add-label">End of page</span>
-                <AddBlockSlot
-                  wrapId="append"
-                  anchorIndex={null}
-                  addMenu={addMenu}
-                  onToggle={toggleAddMenu}
-                  onPickType={addBlock}
-                  label="Add block here"
-                />
-              </div>
-            ) : null}
+            <div className="pb-inline-add-row pb-inline-add-row--append">
+              <span className="pb-inline-add-label">Add another block</span>
+              <AddBlockSlot
+                wrapId="append"
+                anchorIndex={null}
+                addMenu={addMenu}
+                onToggle={toggleAddMenu}
+                onPickType={addBlock}
+                label="Add block"
+              />
+            </div>
           </div>
         )}
 
@@ -1133,7 +1217,22 @@ export default forwardRef(function PageBlockEditor({ section, onSectionSaved }, 
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Background</label>
-                <input className="form-input" value={appear.backgroundColor} onChange={(e) => setAppear((a) => ({ ...a, backgroundColor: e.target.value }))} placeholder="#f5f7fa" />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    value={/^#[0-9A-Fa-f]{6}$/.test(String(appear.backgroundColor || '').trim()) ? appear.backgroundColor.trim() : '#ffffff'}
+                    onChange={(e) => setAppear((a) => ({ ...a, backgroundColor: e.target.value }))}
+                    style={{ width: 44, height: 36, padding: 2, cursor: 'pointer', border: '1px solid var(--card-border)', borderRadius: 6 }}
+                    aria-label="Background color"
+                  />
+                  <input
+                    className="form-input"
+                    style={{ flex: 1 }}
+                    value={appear.backgroundColor}
+                    onChange={(e) => setAppear((a) => ({ ...a, backgroundColor: e.target.value }))}
+                    placeholder="#f5f7fa"
+                  />
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Animation</label>

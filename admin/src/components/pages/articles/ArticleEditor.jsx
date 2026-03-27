@@ -74,6 +74,41 @@ export default function ArticleEditor() {
 
   const handleSave = async (e) => {
     e.preventDefault();
+    
+    // Validation
+    if (!article.title?.trim()) {
+      toast.error('Please enter an article title');
+      return;
+    }
+    if (!article.abstract?.trim()) {
+      toast.error('Please enter an abstract');
+      return;
+    }
+    if (!article.authors?.length || !article.authors[0]?.name?.trim()) {
+      toast.error('Please add at least one author');
+      return;
+    }
+    
+    // Published article validation
+    if (article.type === 'published') {
+      if (!article.doi?.trim()) {
+        toast.error('DOI is required for published articles');
+        return;
+      }
+      if (!article.volume?.trim()) {
+        toast.error('Volume is required for published articles');
+        return;
+      }
+      if (!article.issue?.trim()) {
+        toast.error('Issue is required for published articles');
+        return;
+      }
+      if (!article.pages?.trim()) {
+        toast.error('Pages are required for published articles');
+        return;
+      }
+    }
+    
     setSaving(true);
     setUploadProgress(0);
     const uploadConfig = {
@@ -97,14 +132,25 @@ export default function ArticleEditor() {
 
       if (isEdit) {
         await articlesAPI.update(id, formData, uploadConfig);
-        toast.success('Article updated');
+        toast.success('Article updated successfully');
       } else {
         const { data } = await articlesAPI.create(formData, uploadConfig);
-        toast.success('Article created');
+        toast.success('Article created successfully');
         navigate(`/articles/${data.data._id}`);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Save failed');
+      const errorMsg = err.response?.data?.message;
+      if (errorMsg) {
+        toast.error(errorMsg);
+      } else if (err.response?.status === 400) {
+        toast.error('Invalid article data. Please check all required fields');
+      } else if (err.response?.status === 413) {
+        toast.error('File too large. Maximum size is 100MB');
+      } else if (err.response?.status === 500) {
+        toast.error('Server error. Please try again later');
+      } else {
+        toast.error('Failed to save article. Please check your connection');
+      }
     } finally {
       setSaving(false);
       setUploadProgress(null);
@@ -215,13 +261,68 @@ export default function ArticleEditor() {
               </select>
             </div>
             <div className="form-row">
-              <div className="form-group"><label className="form-label">DOI</label><input className="form-input" value={article.doi || ''} onChange={e => setArticle({ ...article, doi: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">Volume</label><input className="form-input" value={article.volume || ''} onChange={e => setArticle({ ...article, volume: e.target.value })} /></div>
+              <div className="form-group">
+                <label className="form-label">
+                  DOI {article.type === 'published' && <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>}
+                </label>
+                <input 
+                  className="form-input" 
+                  value={article.doi || ''} 
+                  onChange={e => setArticle({ ...article, doi: e.target.value })} 
+                  placeholder={article.type === 'published' ? 'Required for published articles' : 'Optional for preprints'}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">
+                  Volume {article.type === 'published' && <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>}
+                </label>
+                <input 
+                  className="form-input" 
+                  value={article.volume || ''} 
+                  onChange={e => setArticle({ ...article, volume: e.target.value })} 
+                  placeholder={article.type === 'published' ? 'Required' : 'Optional'}
+                />
+              </div>
             </div>
             <div className="form-row">
-              <div className="form-group"><label className="form-label">Issue</label><input className="form-input" value={article.issue || ''} onChange={e => setArticle({ ...article, issue: e.target.value })} /></div>
-              <div className="form-group"><label className="form-label">Pages</label><input className="form-input" value={article.pages || ''} onChange={e => setArticle({ ...article, pages: e.target.value })} /></div>
+              <div className="form-group">
+                <label className="form-label">
+                  Issue {article.type === 'published' && <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>}
+                </label>
+                <input 
+                  className="form-input" 
+                  value={article.issue || ''} 
+                  onChange={e => setArticle({ ...article, issue: e.target.value })} 
+                  placeholder={article.type === 'published' ? 'Required' : 'Optional'}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">
+                  Pages {article.type === 'published' && <span style={{ color: 'var(--danger)', marginLeft: 4 }}>*</span>}
+                </label>
+                <input 
+                  className="form-input" 
+                  value={article.pages || ''} 
+                  onChange={e => setArticle({ ...article, pages: e.target.value })} 
+                  placeholder={article.type === 'published' ? 'e.g., 1-10' : 'Optional'}
+                />
+              </div>
             </div>
+            <div className="form-group">
+              <label className="form-label">Publication Date</label>
+              <input 
+                type="date" 
+                className="form-input" 
+                value={article.publicationDate ? new Date(article.publicationDate).toISOString().split('T')[0] : ''} 
+                onChange={e => setArticle({ ...article, publicationDate: e.target.value ? new Date(e.target.value).toISOString() : '' })} 
+              />
+              <p className="form-helper">Used for sorting and year filtering</p>
+            </div>
+            {article.type === 'published' && (
+              <p className="form-helper" style={{ marginTop: 8, color: 'var(--text-secondary)' }}>
+                * Required fields for published articles
+              </p>
+            )}
           </div>
 
           <div className="card">

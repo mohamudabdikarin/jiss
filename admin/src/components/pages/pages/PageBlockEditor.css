@@ -213,11 +213,6 @@
   box-shadow: 0 0 0 2px var(--primary-bg);
 }
 
-.pb-block--insert-anchor {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--primary);
-}
-
 .pb-insert-hint {
   font-size: 13px;
   color: var(--pb-muted);
@@ -321,7 +316,8 @@
 
 .pb-add-menu--inline {
   left: 0;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
+  top: auto;
   right: auto;
   min-width: min(280px, calc(100vw - 48px));
 }
@@ -385,8 +381,8 @@
 .pb-add-menu {
   position: absolute;
   left: 0;
-  top: 100%;
-  margin-top: 6px;
+  bottom: 100%;
+  margin-bottom: 6px;
   z-index: 40;
   min-width: 240px;
   max-height: min(70vh, 420px);
@@ -430,48 +426,6 @@
 
 .pb-heading-row select {
   max-width: 100px;
-}
-
-/* Quill snow inside cards — match admin inputs */
-.pb-editor .pb-quill .ql-toolbar.ql-snow {
-  border: 1px solid var(--card-border);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  background: var(--card-bg);
-}
-
-.pb-editor .pb-quill .ql-container.ql-snow {
-  border: 1px solid var(--card-border);
-  border-radius: 0 0 8px 8px;
-  background: var(--card-bg);
-  color: var(--text-primary);
-}
-
-.pb-editor .pb-quill .ql-editor {
-  min-height: 88px;
-  font-size: 15px;
-}
-
-/* List blocks — align indent with public site (avoid heavy default Quill/browser indent) */
-.pb-editor .pb-quill .ql-editor ul,
-.pb-editor .pb-quill .ql-editor ol {
-  margin: 0;
-  padding-inline-start: 1.1em;
-}
-.pb-editor .pb-quill .ql-editor li > ul,
-.pb-editor .pb-quill .ql-editor li > ol {
-  padding-inline-start: 1em;
-  margin-top: 0.2em;
-  margin-bottom: 0.2em;
-}
-
-.pb-editor .pb-quill .ql-editor.ql-blank::before {
-  color: var(--text-muted);
-  font-style: normal;
-}
-
-.pb-quill--tight .ql-container .ql-editor {
-  min-height: 52px;
 }
 
 .pb-columns-row {

@@ -485,7 +485,8 @@ export default function App() {
       <SEOHead seo={seoData} siteSettings={siteSettings} pageTitle={pageTitle} article={!!articleData} />
       {/* TOP BAR — buttons on right */}
       <div className="topbar">
-        <div className="topbar-actions">
+        <div className="topbar-inner">
+          <div className="topbar-actions">
           <div className="topbar-links">
             <a href={`${window.location.origin}${window.location.pathname || '/'}#published`} target="_blank" rel="noopener">{t.topbar_published}</a>
             <a href={`${window.location.origin}${window.location.pathname || '/'}#preprints`} target="_blank" rel="noopener">{t.topbar_preprint}</a>
@@ -498,33 +499,37 @@ export default function App() {
             ))}
           </div>
         </div>
+        </div>
       </div>
 
       {/* HEADER */}
       <header>
-        <div className="logo-area">
-          {siteSettings?.siteLogo && <img className="logo-img" src={siteSettings.siteLogo} alt="" onError={e => e.target.style.display = 'none'} />}
-          <div className="journal-title">
-            {(t?.journal_title && String(t.journal_title).trim()) || siteSettings?.siteName ? (
-              <strong>{(t?.journal_title && String(t.journal_title).trim()) || siteSettings?.siteName}</strong>
-            ) : null}
-            {siteSettings?.journalMeta?.issn && (
-              <span>
-                {(t?.journal_issn && String(t.journal_issn).trim()) || siteSettings.journalMeta.issn}
-              </span>
-            )}
+        <div className="header-inner">
+          <div className="logo-area">
+            {siteSettings?.siteLogo && <img className="logo-img" src={siteSettings.siteLogo} alt="" onError={e => e.target.style.display = 'none'} />}
+            <div className="journal-title">
+              {(t?.journal_title && String(t.journal_title).trim()) || siteSettings?.siteName ? (
+                <strong>{(t?.journal_title && String(t.journal_title).trim()) || siteSettings?.siteName}</strong>
+              ) : null}
+              {siteSettings?.journalMeta?.issn && (
+                <span>
+                  {(t?.journal_issn && String(t.journal_issn).trim()) || siteSettings.journalMeta.issn}
+                </span>
+              )}
+            </div>
           </div>
+          <form className="header-search" onSubmit={e => { e.preventDefault(); const q = e.currentTarget.querySelector('input')?.value; showSearch(q); }} style={{ display: 'flex', gap: 4 }}>
+            <input type="text" placeholder={t?.search_placeholder ?? 'Search articles...'} name="q" />
+            <button type="submit">&#128269;</button>
+          </form>
         </div>
-        <form className="header-search" onSubmit={e => { e.preventDefault(); const q = e.currentTarget.querySelector('input')?.value; showSearch(q); }} style={{ display: 'flex', gap: 4 }}>
-          <input type="text" placeholder={t?.search_placeholder ?? 'Search articles...'} name="q" />
-          <button type="submit">&#128269;</button>
-        </form>
       </header>
 
       {/* NAV — Dynamic from API */}
       <div className="nav-wrapper">
         <nav className="nav-main">
-          <ul>
+          <div className="nav-main-inner">
+            <ul>
             {(() => {
               const firstActiveIdx = renderNavItems.findIndex(it => isInternalNav(it.url) && getNavSlug(it.url) === currentPage);
               return renderNavItems.map((item, i) => {
@@ -550,13 +555,16 @@ export default function App() {
               });
             })()}
           </ul>
+          </div>
         </nav>
         {/* Metadata bar (ISSN, CiteScore, DOI, Frequency) — managed from Admin Settings */}
         <div className="nav-metadata">
+          <div className="nav-metadata-inner">
           {siteSettings?.journalMeta?.issn && <span><strong>{t.hero_issn}:</strong> {siteSettings.journalMeta.issn}</span>}
           {siteSettings?.journalMeta?.citeScore && <span><strong>{t.hero_citescore}:</strong> {siteSettings.journalMeta.citeScore}</span>}
           {siteSettings?.journalMeta?.doi && <span><strong>{t.hero_doi}:</strong> {siteSettings.journalMeta.doi}</span>}
           {siteSettings?.journalMeta?.frequency && <span><strong>{t.hero_freq}:</strong> {siteSettings.journalMeta.frequency}</span>}
+          </div>
         </div>
       </div>
 
@@ -604,6 +612,7 @@ export default function App() {
           <DynamicPage
             page={pageData}
             currentPage={currentPage}
+            currentLang={currentLang}
             t={t}
             showPage={showPage}
             showSearch={showSearch}
@@ -808,6 +817,7 @@ function safeShapePadding(value, fallback) {
 function shapeBlockBoxStyle(block) {
   return {
     backgroundColor: safeShapeColor(block.backgroundColor, '#f0f7ff'),
+    color: safeShapeColor(block.textColor, '#000000'),
     borderColor: safeShapeColor(block.borderColor, '#b8d4eb'),
     borderWidth: safeShapeLength(block.borderWidth, '1px'),
     borderStyle: 'solid',
@@ -890,8 +900,18 @@ function renderPageBlockButton(label, url, variant, newTab, showPage) {
   );
 }
 
-function RenderPageBlocks({ blocks, showPage }) {
+function RenderPageBlocks({ blocks, showPage, currentLang = 'en' }) {
   if (!Array.isArray(blocks) || blocks.length === 0) return null;
+  
+  // Helper to get translated value with fallback
+  const getI18nValue = (block, field) => {
+    const i18nData = block.i18n?.[field];
+    if (i18nData && typeof i18nData === 'object') {
+      return i18nData[currentLang] || i18nData.en || block[field] || '';
+    }
+    return block[field] || '';
+  };
+  
   return (
     <div className="page-blocks-root">
       {blocks.map((block, idx) => {
@@ -902,9 +922,7 @@ function RenderPageBlocks({ blocks, showPage }) {
             const Tag = level;
             const align = block.align === 'center' || block.align === 'right' ? block.align : 'left';
             const cls = `pb-heading pb-heading-${level} pb-align-${align}`;
-            const rawText = block.text != null && String(block.text).trim() !== ''
-              ? String(block.text)
-              : String(block.html || '').replace(/<[^>]*>/g, '').trim();
+            const rawText = getI18nValue(block, 'text') || String(block.html || '').replace(/<[^>]*>/g, '').trim();
             return (
               <Tag key={key} className={cls}>
                 {rawText}
@@ -916,7 +934,7 @@ function RenderPageBlocks({ blocks, showPage }) {
               <div
                 key={key}
                 className="pb-paragraph"
-                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.html || '') }}
+                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'html')) }}
               />
             );
           case 'quote':
@@ -924,7 +942,7 @@ function RenderPageBlocks({ blocks, showPage }) {
               <blockquote
                 key={key}
                 className="pb-quote"
-                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.html || '') }}
+                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'html')) }}
               />
             );
           case 'list':
@@ -932,7 +950,7 @@ function RenderPageBlocks({ blocks, showPage }) {
               <div
                 key={key}
                 className="pb-list"
-                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.html || '') }}
+                dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'html')) }}
               />
             );
           case 'image':
@@ -945,7 +963,7 @@ function RenderPageBlocks({ blocks, showPage }) {
           case 'button':
             return (
               <div key={key} className="pb-buttons">
-                {renderPageBlockButton(block.label, block.url, block.variant, block.newTab, showPage)}
+                {renderPageBlockButton(getI18nValue(block, 'label'), block.url, block.variant, block.newTab, showPage)}
               </div>
             );
           case 'divider':
@@ -953,8 +971,8 @@ function RenderPageBlocks({ blocks, showPage }) {
           case 'columns':
             return (
               <div key={key} className="pb-columns">
-                <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.col1Html || '') }} />
-                <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.col2Html || '') }} />
+                <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'col1Html')) }} />
+                <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'col2Html')) }} />
               </div>
             );
           case 'spacer': {
@@ -975,15 +993,15 @@ function RenderPageBlocks({ blocks, showPage }) {
               <article key={key} className="pb-card">
                 {block.imageSrc ? <img src={block.imageSrc} alt="" /> : null}
                 <div className="pb-card-body">
-                  {block.title ? <h3 className="pb-card-title">{block.title}</h3> : null}
-                  <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(block.bodyHtml || '') }} />
+                  {getI18nValue(block, 'title') ? <h3 className="pb-card-title">{getI18nValue(block, 'title')}</h3> : null}
+                  <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: normalizeRichTextHtml(getI18nValue(block, 'bodyHtml')) }} />
                 </div>
               </article>
             );
           case 'profile_heading': {
             const accent = block.accentColor || '#c8102e';
-            const title = (block.title || '').trim();
-            const subtitle = (block.subtitle || '').trim();
+            const title = getI18nValue(block, 'title').trim();
+            const subtitle = getI18nValue(block, 'subtitle').trim();
             if (!title && !subtitle) return null;
             return (
               <div key={key} className="pb-profile-heading">
@@ -1010,7 +1028,7 @@ function RenderPageBlocks({ blocks, showPage }) {
           case 'tag_pills': {
             const align = block.align === 'left' || block.align === 'right' ? block.align : 'center';
             const badges = (block.badges || []).filter((b) => b && String(b.label || '').trim());
-            const heading = String(block.heading || '').trim();
+            const heading = getI18nValue(block, 'heading').trim();
             if (badges.length === 0 && !heading) return null;
             return (
               <div key={key} className="pb-tag-pills-block">
@@ -1063,9 +1081,9 @@ function RenderPageBlocks({ blocks, showPage }) {
             );
           }
           case 'apc_callout': {
-            const label = String(block.label || '').trim();
-            const amount = String(block.amount || '').trim();
-            const note = String(block.note || '').trim();
+            const label = getI18nValue(block, 'label').trim();
+            const amount = getI18nValue(block, 'amount').trim();
+            const note = getI18nValue(block, 'note').trim();
             if (!label && !amount && !note) return null;
             return (
               <aside key={key} className="pb-apc-callout" aria-label={label || 'Fee information'}>
@@ -1076,7 +1094,7 @@ function RenderPageBlocks({ blocks, showPage }) {
             );
           }
           case 'shape': {
-            const inner = normalizeRichTextHtml(block.html || '');
+            const inner = normalizeRichTextHtml(getI18nValue(block, 'html'));
             return (
               <div key={key} className="pb-shape" style={shapeBlockBoxStyle(block)}>
                 <div className="pb-paragraph" dangerouslySetInnerHTML={{ __html: inner }} />
@@ -1096,6 +1114,7 @@ function DynamicSectionRow({
   sectionIndex,
   firstHomeRichIndex,
   currentPage,
+  currentLang,
   t,
   showPage,
   showSearch,
@@ -1107,6 +1126,7 @@ function DynamicSectionRow({
         sectionIndex,
         firstHomeRichIndex,
         currentPage,
+        currentLang,
         t,
         showPage,
         showSearch,
@@ -1115,6 +1135,7 @@ function DynamicSectionRow({
     : SectionRenderer({
         section,
         currentPage,
+        currentLang,
         t,
         showPage,
         showSearch,
@@ -1124,7 +1145,7 @@ function DynamicSectionRow({
   return <SectionShell section={section}>{inner}</SectionShell>;
 }
 
-function DynamicPage({ page, currentPage, t, showPage, showSearch, siteSettings, sidebarItems, getTranslatedLabel, belowSections = null }) {
+function DynamicPage({ page, currentPage, currentLang, t, showPage, showSearch, siteSettings, sidebarItems, getTranslatedLabel, belowSections = null }) {
   const sections = page.sections || [];
   const firstHomeRichIndex = sections.findIndex(s => s.type === 'text' || s.type === 'richtext');
   const tpl = page.template || 'default';
@@ -1143,6 +1164,7 @@ function DynamicPage({ page, currentPage, t, showPage, showSearch, siteSettings,
             sectionIndex={i}
             firstHomeRichIndex={firstHomeRichIndex}
             currentPage={currentPage}
+            currentLang={currentLang}
             t={t}
             showPage={showPage}
             showSearch={showSearch}
@@ -1155,7 +1177,7 @@ function DynamicPage({ page, currentPage, t, showPage, showSearch, siteSettings,
   );
 }
 
-function SectionContent({ section, sectionIndex, firstHomeRichIndex, currentPage, t, showPage, showSearch, siteSettings }) {
+function SectionContent({ section, sectionIndex, firstHomeRichIndex, currentPage, currentLang, t, showPage, showSearch, siteSettings }) {
   const content = normalizeSectionContent(section.content);
   const title = content.title || content.heading;
   const titleStyle = content.titleStyle;
@@ -1179,7 +1201,7 @@ function SectionContent({ section, sectionIndex, firstHomeRichIndex, currentPage
       );
     }
     case 'page_blocks':
-      return <RenderPageBlocks blocks={content.blocks} showPage={showPage} />;
+      return <RenderPageBlocks blocks={content.blocks} showPage={showPage} currentLang={currentLang} />;
     case 'tag_badges':
     case 'tag_badge': {
       const align = content.align === 'left' || content.align === 'right' ? content.align : 'center';
@@ -1381,7 +1403,7 @@ function SectionContent({ section, sectionIndex, firstHomeRichIndex, currentPage
   }
 }
 
-function SectionRenderer({ section, currentPage, t, showPage, showSearch, siteSettings }) {
+function SectionRenderer({ section, currentPage, currentLang, t, showPage, showSearch, siteSettings }) {
   const content = normalizeSectionContent(section.content);
 
   switch (section.type) {
