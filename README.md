@@ -81,6 +81,20 @@ cd admin && npm run dev
 curl -s http://localhost:5000/api/v1/health | jq
 ```
 
+## Production Deployment
+
+### Dokploy (Recommended - Easiest)
+Complete Docker Compose deployment with automatic SSL:
+
+**Quick Deploy:**
+1. Set up 3 domains pointing to Dokploy server
+2. Create Compose project in Dokploy
+3. Set environment variables (see [DEPLOYMENT.md](DEPLOYMENT.md))
+4. Deploy and create admin user
+
+**Full Guide:** [docs/DOKPLOY.md](docs/DOKPLOY.md)  
+**Quick Checklist:** [DEPLOYMENT.md](DEPLOYMENT.md)
+
 ## Documentation
 
 | Document | Contents |
@@ -131,6 +145,7 @@ docker compose -f docker-compose.yml -f docker-compose.ports.yml up --build
 - **Articles** — Preprints and published articles with categories, PDFs, and public listings.
 - **Translations** — Four languages (en, ar, ms, zh); overrides merge with CMS content; language choice persisted in the browser.
 - **Translation Manager** — Empty fields can be prefilled from **live published CMS content** via `GET /api/v1/settings/translation-sources` (see **docs/TRANSLATIONS.md**).
+- **/admin redirect** — Visiting `yourdomain.com/admin` automatically redirects to admin panel (requires `ADMIN_DOMAIN` env var in deployment).
 
 ## License / attribution
 

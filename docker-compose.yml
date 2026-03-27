@@ -73,6 +73,8 @@ services:
     restart: unless-stopped
     networks:
       - internal
+    environment:
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?Set ADMIN_DOMAIN to your admin panel domain}
     expose:
       - "80"
 
